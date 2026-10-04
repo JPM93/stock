@@ -313,6 +313,15 @@ body {
     font-size: 1.2rem;
     color: #fff;
     background: linear-gradient(135deg, #10b981, #34d399);
+    flex-shrink: 0;
+}
+
+.master-icon.brand {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+.master-icon.category {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
 }
 
 .badge-soft {
@@ -372,6 +381,47 @@ body {
 .alert-item.danger {
     background: #fee2e2;
     border-left-color: #ef4444;
+}
+
+/* Brand usage list */
+.brand-usage-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.brand-usage-row:last-child {
+    border-bottom: none;
+}
+
+.brand-usage-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.brand-usage-bar {
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 4px;
+}
+
+.brand-usage-bar>div {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #34d399);
+    border-radius: 3px;
 }
 
 .google-drive-btn {

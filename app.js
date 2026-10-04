@@ -19,15 +19,18 @@
     function uid(prefix) { return prefix + '_' + Date.now() + Math.random().toString(36).substr(2, 6); }
     function formatDate(ds) { if (!ds) return '—'; const d = new Date(ds + 'T00:00:00'); return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); }
     function formatCurrency(n) { return '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+    function initials(name) { if (!name) return '?'; return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase(); }
 
     // ─── Data Accessors ──────────────────────────────
     function getStorages() { return load('storages', []); }
     function getCategories() { return load('categories', []); }
+    function getBrands() { return load('brands', []); }
     function getItems() { return load('items', []); }
     function getStock() { return load('stock', []); }
     function getShopping() { return load('shopping', []); }
     function saveStorages(v) { save('storages', v); }
     function saveCategories(v) { save('categories', v); }
+    function saveBrands(v) { save('brands', v); }
     function saveItems(v) { save('items', v); }
     function saveStock(v) { save('stock', v); }
     function saveShopping(v) { save('shopping', v); }
@@ -36,6 +39,7 @@
         return {
             storages: getStorages(),
             categories: getCategories(),
+            brands: getBrands(),
             items: getItems(),
             stock: getStock(),
             shopping: getShopping(),
@@ -45,12 +49,14 @@
     function restoreData(d) {
         if (d.storages) saveStorages(d.storages);
         if (d.categories) saveCategories(d.categories);
+        if (d.brands) saveBrands(d.brands);
         if (d.items) saveItems(d.items);
         if (d.stock) saveStock(d.stock);
         if (d.shopping) saveShopping(d.shopping);
     }
     function getStorageById(id) { return getStorages().find(s => s.id === id); }
     function getCategoryById(id) { return getCategories().find(c => c.id === id); }
+    function getBrandById(id) { return getBrands().find(b => b.id === id); }
     function getItemById(id) { return getItems().find(i => i.id === id); }
 
     // ─── Navigation ──────────────────────────────────
@@ -62,18 +68,21 @@
         const nav = document.querySelector(`[data-page="${page}"]`); if (nav) nav.classList.add('active');
         const titles = {
             dashboard: '📊 Dashboard', stock: '📦 Available Stock', items: '🏷️ Item Master',
-            categories: '📚 Category Master', storages: '🏠 Storage Master',
+            brands: '©️ Brand Master', categories: '📚 Category Master', storages: '🏠 Storage Master',
             shopping: '🛒 Shopping List', settings: '⚙️ Settings & Sync'
         };
         document.getElementById('pageTitle').textContent = titles[page] || page;
         refreshCurrentPage();
         if (page === 'settings') loadDriveConfigInputs();
     }
+    window.navigateTo = navigateTo;
+
     function refreshCurrentPage() {
         switch (currentPage) {
             case 'dashboard': refreshDashboard(); break;
             case 'stock': refreshStock(); break;
             case 'items': refreshItems(); break;
+            case 'brands': refreshBrands(); break;
             case 'categories': refreshCategories(); break;
             case 'storages': refreshStorages(); break;
             case 'shopping': refreshShopping(); break;
@@ -90,7 +99,7 @@
 
     // ─── Dashboard ───────────────────────────────────
     function refreshDashboard() {
-        const items = getItems(), stock = getStock(), storages = getStorages(), categories = getCategories();
+        const items = getItems(), stock = getStock();
         document.getElementById('statTotalItems').textContent = items.length;
         document.getElementById('statTotalStock').textContent = stock.length;
 
@@ -109,9 +118,10 @@
         else {
             lowStockList.innerHTML = alerts.map(s => {
                 const item = getItemById(s.itemId); if (!item) return '';
+                const brand = getBrandById(item.brandId);
                 const isOut = (Number(s.quantity) || 0) <= 0;
                 return `<div class="alert-item ${isOut ? 'danger' : ''}">
-                    <div><strong>${escapeHtml(item.brandName || '')} ${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || 'Unknown')}</small></div>
+                    <div><strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || 'Unknown')}</small></div>
                     <span class="badge-soft ${isOut ? 'red' : 'orange'}">${isOut ? 'Out' : (Number(s.quantity)) + ' left'}</span>
                 </div>`;
             }).join('');
@@ -131,30 +141,73 @@
         else {
             expiringList.innerHTML = expiring.map(s => {
                 const item = getItemById(s.itemId); if (!item) return '';
+                const brand = getBrandById(item.brandId);
                 const d = new Date(s.expiryDate); const days = Math.ceil((d - today) / 86400000);
                 return `<div class="alert-item">
-                    <div><strong>${escapeHtml(item.brandName || '')} ${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || '')}</small></div>
+                    <div><strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || '')}</small></div>
                     <span class="badge-soft orange">${days}d</span>
                 </div>`;
             }).join('');
         }
 
+        // Brand usage
+        refreshBrandUsageWidget();
+
         // Recent items
         const recent = [...items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
         const tbody = document.getElementById('recentItemsBody');
-        if (!recent.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><i class="fas fa-inbox"></i><p>No items yet. Add your first item!</p></td></tr>'; }
+        if (!recent.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><i class="fas fa-inbox"></i><p>No items yet.</p></td></tr>'; }
         else {
             tbody.innerHTML = recent.map(i => {
-                const cat = getCategoryById(i.categoryId);
+                const brand = getBrandById(i.brandId);
                 return `<tr>
-                    <td><strong>${escapeHtml(i.brandName || '')}</strong> ${escapeHtml(i.itemName)}</td>
-                    <td>${cat ? `<span class="badge-soft blue">${escapeHtml(cat.name)}</span>` : '<span class="text-muted">—</span>'}</td>
+                    <td>${escapeHtml(i.itemName)}</td>
+                    <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                     <td>${i.size} ${i.unit}</td>
                     <td>${formatCurrency(i.price)}</td>
-                    <td><small class="text-muted">${new Date(i.createdAt).toLocaleDateString('en-IN')}</small></td>
                 </tr>`;
             }).join('');
         }
+    }
+
+    function refreshBrandUsageWidget() {
+        const container = document.getElementById('brandUsageList');
+        if (!container) return;
+        const brands = getBrands();
+        const items = getItems();
+        if (!brands.length) { container.innerHTML = '<div class="empty-state"><i class="fas fa-copyright"></i><p>No brands yet.</p></div>'; return; }
+
+        const usage = brands.map(b => {
+            const brandItems = items.filter(i => i.brandId === b.id);
+            const itemCount = brandItems.length;
+            let stockCount = 0;
+            let value = 0;
+            brandItems.forEach(i => {
+                const stockEntries = getStock().filter(s => s.itemId === i.id);
+                stockEntries.forEach(s => {
+                    stockCount += Number(s.quantity) || 0;
+                    value += (Number(i.price) || 0) * (Number(s.quantity) || 0);
+                });
+            });
+            return { id: b.id, name: b.name, itemCount, stockCount, value };
+        }).sort((a, b) => b.itemCount - a.itemCount).slice(0, 6);
+
+        const maxItems = Math.max(...usage.map(u => u.itemCount), 1);
+
+        container.innerHTML = usage.map(u => {
+            const pct = (u.itemCount / maxItems) * 100;
+            return `<div class="brand-usage-row">
+                <div class="brand-usage-avatar">${escapeHtml(initials(u.name))}</div>
+                <div style="flex:1;min-width:0;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong>${escapeHtml(u.name)}</strong>
+                        <small class="text-muted">${u.itemCount} item${u.itemCount !== 1 ? 's' : ''}</small>
+                    </div>
+                    <div class="brand-usage-bar"><div style="width:${pct}%;"></div></div>
+                    <small class="text-muted">Stock: ${u.stockCount.toFixed(0)} units · Value: ${formatCurrency(u.value)}</small>
+                </div>
+            </div>`;
+        }).join('');
     }
 
     // ─── Storage Master ──────────────────────────────
@@ -241,7 +294,7 @@
             return `<div class="col-md-4 col-sm-6">
                 <div class="master-card">
                     <div class="d-flex gap-2 mb-2">
-                        <div class="master-icon" style="background: linear-gradient(135deg, #6366f1, #8b5cf6);"><i class="fas fa-tag"></i></div>
+                        <div class="master-icon category"><i class="fas fa-tag"></i></div>
                         <div>
                             <h6 class="fw-bold mb-0">${escapeHtml(c.name)}</h6>
                             <small class="text-muted">Category</small>
@@ -300,22 +353,137 @@
         refreshCategories(); refreshDropdowns();
     };
 
+    // ─── Brand Master ────────────────────────────────
+    function refreshBrands() {
+        const grid = document.getElementById('brandsGrid');
+        const brands = getBrands();
+        if (!brands.length) { grid.innerHTML = '<div class="col-12 empty-state"><i class="fas fa-copyright"></i><p>No brands yet. Add your first brand!</p></div>'; return; }
+
+        const items = getItems();
+        const data = brands.map(b => {
+            const brandItems = items.filter(i => i.brandId === b.id);
+            const itemCount = brandItems.length;
+            let stockUnits = 0, value = 0;
+            brandItems.forEach(i => {
+                getStock().filter(s => s.itemId === i.id).forEach(s => {
+                    stockUnits += Number(s.quantity) || 0;
+                    value += (Number(i.price) || 0) * (Number(s.quantity) || 0);
+                });
+            });
+            return { brand: b, itemCount, stockUnits, value };
+        }).sort((a, b) => b.itemCount - a.itemCount);
+
+        const maxItems = Math.max(...data.map(d => d.itemCount), 1);
+
+        grid.innerHTML = data.map(d => {
+            const b = d.brand;
+            const pct = (d.itemCount / maxItems) * 100;
+            return `<div class="col-md-4 col-sm-6">
+                <div class="master-card">
+                    <div class="d-flex gap-2 mb-3">
+                        <div class="master-icon brand" style="font-weight:800;font-size:0.95rem;">${escapeHtml(initials(b.name))}</div>
+                        <div style="min-width:0;">
+                            <h6 class="fw-bold mb-0">${escapeHtml(b.name)}</h6>
+                            <small class="text-muted">Brand</small>
+                        </div>
+                    </div>
+                    ${b.description ? `<p class="small text-muted mb-2">${escapeHtml(b.description)}</p>` : ''}
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small class="text-muted">Items used</small>
+                            <small class="fw-bold">${d.itemCount}</small>
+                        </div>
+                        <div class="brand-usage-bar"><div style="width:${pct}%;"></div></div>
+                    </div>
+                    <div class="d-flex gap-2 mb-3 flex-wrap">
+                        <span class="badge-soft blue"><i class="fas fa-cubes me-1"></i>${d.stockUnits.toFixed(0)} units</span>
+                        <span class="badge-soft green"><i class="fas fa-indian-rupee-sign me-1"></i>${formatCurrency(d.value)}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button class="btn btn-sm btn-outline-custom" onclick="viewBrandItems('${b.id}')"><i class="fas fa-list me-1"></i>Items</button>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="openBrandModal('edit','${b.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteBrand('${b.id}')"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+    window.openBrandModal = function (mode, id) {
+        document.getElementById('brandEditId').value = '';
+        document.getElementById('brandModalTitle').textContent = 'Add Brand';
+        document.getElementById('brandName').value = '';
+        document.getElementById('brandDescription').value = '';
+        if (mode === 'edit' && id) {
+            const b = getBrandById(id); if (!b) return;
+            document.getElementById('brandEditId').value = b.id;
+            document.getElementById('brandModalTitle').textContent = 'Edit Brand';
+            document.getElementById('brandName').value = b.name;
+            document.getElementById('brandDescription').value = b.description || '';
+        }
+        new bootstrap.Modal(document.getElementById('brandModal')).show();
+    };
+    window.saveBrand = function () {
+        const name = document.getElementById('brandName').value.trim();
+        if (!name) { showToast('Brand name required', 'warning'); return; }
+        const editId = document.getElementById('brandEditId').value;
+        const brands = getBrands();
+        if (brands.find(b => b.name.toLowerCase() === name.toLowerCase() && b.id !== editId)) {
+            showToast('Brand already exists', 'warning'); return;
+        }
+        const data = {
+            id: editId || uid('brd'),
+            name,
+            description: document.getElementById('brandDescription').value.trim(),
+            createdAt: editId ? (getBrandById(editId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+        };
+        if (editId) { const i = brands.findIndex(x => x.id === editId); if (i >= 0) brands[i] = data; }
+        else brands.push(data);
+        saveBrands(brands);
+        bootstrap.Modal.getInstance(document.getElementById('brandModal')).hide();
+        showToast(editId ? 'Brand updated!' : 'Brand added!', 'success');
+        refreshBrands(); refreshDropdowns(); refreshDashboard();
+    };
+    window.deleteBrand = function (id) {
+        const used = getItems().filter(i => i.brandId === id).length;
+        if (used) { showToast(`Cannot delete — ${used} item(s) use this brand`, 'error'); return; }
+        if (!confirm('Delete this brand?')) return;
+        saveBrands(getBrands().filter(b => b.id !== id));
+        showToast('Brand deleted', 'success');
+        refreshBrands(); refreshDropdowns(); refreshDashboard();
+    };
+    window.viewBrandItems = function (brandId) {
+        const brand = getBrandById(brandId); if (!brand) return;
+        const brandItems = getItems().filter(i => i.brandId === brandId);
+        if (!brandItems.length) { showToast(`No items for ${brand.name} yet`, 'info'); return; }
+        // Switch to items page filtered by brand
+        navigateTo('items');
+        setTimeout(() => {
+            const filter = document.getElementById('itemBrandFilter');
+            if (filter) { filter.value = brandId; refreshItems(); }
+        }, 100);
+    };
+
     // ─── Item Master ─────────────────────────────────
     function refreshItems() {
         const tbody = document.getElementById('itemsBody');
         const search = (document.getElementById('itemSearch')?.value || '').toLowerCase();
         const catFilter = document.getElementById('itemCategoryFilter')?.value || '';
+        const brandFilter = document.getElementById('itemBrandFilter')?.value || '';
         let items = getItems();
-        if (search) items = items.filter(i => (i.brandName || '').toLowerCase().includes(search) || (i.itemName || '').toLowerCase().includes(search));
+        if (search) items = items.filter(i => (i.itemName || '').toLowerCase().includes(search));
         if (catFilter) items = items.filter(i => i.categoryId === catFilter);
+        if (brandFilter) items = items.filter(i => i.brandId === brandFilter);
         items = items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        if (!items.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-tag"></i><p>No items found. Add your first item!</p></td></tr>'; return; }
+        if (!items.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-tag"></i><p>No items found.</p></td></tr>'; return; }
         tbody.innerHTML = items.map(i => {
             const cat = getCategoryById(i.categoryId);
+            const brand = getBrandById(i.brandId);
             return `<tr>
-                <td><strong>${escapeHtml(i.brandName || '—')}</strong></td>
-                <td>${escapeHtml(i.itemName)}</td>
+                <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
+                <td><strong>${escapeHtml(i.itemName)}</strong></td>
                 <td>${cat ? `<span class="badge-soft blue">${escapeHtml(cat.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td>${i.size}</td>
                 <td><span class="badge-soft gray">${escapeHtml(i.unit)}</span></td>
@@ -329,20 +497,21 @@
     }
     window.openItemModal = function (mode, id) {
         if (!getCategories().length) { showToast('Please add a category first', 'warning'); return; }
+        if (!getBrands().length) { showToast('Please add a brand first', 'warning'); return; }
         document.getElementById('itemEditId').value = '';
         document.getElementById('itemModalTitle').textContent = 'Add Item';
-        document.getElementById('itemBrand').value = '';
         document.getElementById('itemName').value = '';
         document.getElementById('itemSize').value = '';
         document.getElementById('itemUnit').value = 'gm';
         document.getElementById('itemPrice').value = '';
         document.getElementById('itemNotes').value = '';
-        populateDropdown('itemCategory', getCategories().map(c => ({ id: c.id, label: c.name })));
+        populateDropdown('itemBrand', getBrands().map(b => ({ id: b.id, label: b.name })), false);
+        populateDropdown('itemCategory', getCategories().map(c => ({ id: c.id, label: c.name })), false);
         if (mode === 'edit' && id) {
             const i = getItemById(id); if (!i) return;
             document.getElementById('itemEditId').value = i.id;
             document.getElementById('itemModalTitle').textContent = 'Edit Item';
-            document.getElementById('itemBrand').value = i.brandName || '';
+            document.getElementById('itemBrand').value = i.brandId || '';
             document.getElementById('itemName').value = i.itemName;
             document.getElementById('itemCategory').value = i.categoryId || '';
             document.getElementById('itemSize').value = i.size;
@@ -355,7 +524,9 @@
     window.saveItem = function () {
         const itemName = document.getElementById('itemName').value.trim();
         if (!itemName) { showToast('Item name required', 'warning'); return; }
+        const brandId = document.getElementById('itemBrand').value;
         const categoryId = document.getElementById('itemCategory').value;
+        if (!brandId) { showToast('Brand required', 'warning'); return; }
         if (!categoryId) { showToast('Category required', 'warning'); return; }
         const size = parseFloat(document.getElementById('itemSize').value);
         if (!size || size <= 0) { showToast('Valid size required', 'warning'); return; }
@@ -366,7 +537,7 @@
         const items = getItems();
         const data = {
             id: editId || uid('itm'),
-            brandName: document.getElementById('itemBrand').value.trim(),
+            brandId,
             itemName,
             categoryId,
             size,
@@ -408,16 +579,20 @@
     function refreshStock() {
         const tbody = document.getElementById('stockBody');
         const search = (document.getElementById('stockSearch')?.value || '').toLowerCase();
+        const brandFilter = document.getElementById('stockBrandFilter')?.value || '';
         const storageFilter = document.getElementById('stockStorageFilter')?.value || '';
         const statusFilter = document.getElementById('stockStatusFilter')?.value || '';
 
         let stock = getStock();
         if (storageFilter) stock = stock.filter(s => s.storageId === storageFilter);
+        if (brandFilter) {
+            stock = stock.filter(s => { const item = getItemById(s.itemId); return item && item.brandId === brandFilter; });
+        }
         if (search) {
             stock = stock.filter(s => {
                 const item = getItemById(s.itemId);
                 if (!item) return false;
-                return ((item.brandName || '') + ' ' + item.itemName).toLowerCase().includes(search);
+                return (item.itemName || '').toLowerCase().includes(search);
             });
         }
         if (statusFilter) {
@@ -432,14 +607,16 @@
         }
         stock = stock.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
 
-        if (!stock.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-boxes-stacked"></i><p>No stock entries. Add stock to get started!</p></td></tr>'; return; }
+        if (!stock.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="fas fa-boxes-stacked"></i><p>No stock entries found.</p></td></tr>'; return; }
         tbody.innerHTML = stock.map(s => {
             const item = getItemById(s.itemId); if (!item) return '';
+            const brand = getBrandById(item.brandId);
             const storage = getStorageById(s.storageId);
             const status = getStockStatus(s);
             const value = (Number(item.price) || 0) * (Number(s.quantity) || 0);
             return `<tr>
-                <td><strong>${escapeHtml(item.brandName || '')} ${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${item.size} ${item.unit}</small></td>
+                <td><strong>${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${item.size} ${item.unit}</small></td>
+                <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td>${storage ? `<i class="fas fa-warehouse text-muted me-1"></i>${escapeHtml(storage.name)}` : '<span class="text-muted">—</span>'}</td>
                 <td><strong>${Number(s.quantity) || 0}</strong></td>
                 <td>${s.expiryDate ? formatDate(s.expiryDate) : '<span class="text-muted">—</span>'}</td>
@@ -473,8 +650,11 @@
         document.getElementById('stockExpiry').value = '';
         document.getElementById('stockNotes').value = '';
 
-        populateDropdown('stockItem', getItems().map(i => ({ id: i.id, label: `${i.brandName ? i.brandName + ' ' : ''}${i.itemName} (${i.size}${i.unit})` })));
-        populateDropdown('stockStorage', getStorages().map(s => ({ id: s.id, label: s.name })));
+        populateDropdown('stockItem', getItems().map(i => {
+            const brand = getBrandById(i.brandId);
+            return { id: i.id, label: `${brand ? brand.name + ' ' : ''}${i.itemName} (${i.size}${i.unit})` };
+        }), false);
+        populateDropdown('stockStorage', getStorages().map(s => ({ id: s.id, label: s.name })), false);
 
         if (mode === 'edit' && id) {
             const s = getStock().find(x => x.id === id); if (!s) return;
@@ -530,13 +710,11 @@
     function refreshShopping() {
         const container = document.getElementById('shoppingListContainer');
         const list = getShopping();
-        if (!list.length) { container.innerHTML = '<div class="empty-state"><i class="fas fa-cart-shopping"></i><p>Shopping list khaali hai. Add items or auto-generate from low stock.</p></div>'; return; }
+        if (!list.length) { container.innerHTML = '<div class="empty-state"><i class="fas fa-cart-shopping"></i><p>Shopping list khaali hai.</p></div>'; return; }
         const active = list.filter(s => !s.done);
         const done = list.filter(s => s.done);
         let html = '';
-        if (active.length) {
-            html += active.map(s => shoppingItemHTML(s)).join('');
-        }
+        if (active.length) html += active.map(s => shoppingItemHTML(s)).join('');
         if (done.length) {
             html += `<div class="mt-3 mb-2 text-muted small fw-bold">COMPLETED (${done.length})</div>`;
             html += done.map(s => shoppingItemHTML(s)).join('');
@@ -617,12 +795,13 @@
         let added = 0;
         lowStock.forEach(s => {
             const item = getItemById(s.itemId); if (!item) return;
+            const brand = getBrandById(item.brandId);
             const existing = list.find(x => !x.done && x.name.toLowerCase().includes(item.itemName.toLowerCase()));
             if (existing) return;
             const shortfall = Math.max(1, (Number(s.minStock) || 1) - (Number(s.quantity) || 0) + 1);
             list.push({
                 id: uid('shp'),
-                name: `${item.brandName ? item.brandName + ' ' : ''}${item.itemName}`,
+                name: `${brand ? brand.name + ' ' : ''}${item.itemName}`,
                 qty: `${shortfall} x ${item.size}${item.unit}`,
                 price: (Number(item.price) || 0) * shortfall,
                 notes: 'Auto-added from low stock',
@@ -664,19 +843,29 @@
         el.innerHTML = html;
     }
     function refreshDropdowns() {
-        // Item category filter
-        const catFilter = document.getElementById('itemCategoryFilter');
-        if (catFilter) {
-            const cur = catFilter.value;
-            catFilter.innerHTML = '<option value="">All Categories</option>' + getCategories().map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
-            catFilter.value = cur;
+        const itemCatFilter = document.getElementById('itemCategoryFilter');
+        if (itemCatFilter) {
+            const cur = itemCatFilter.value;
+            itemCatFilter.innerHTML = '<option value="">All Categories</option>' + getCategories().map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+            itemCatFilter.value = cur;
         }
-        // Stock storage filter
+        const itemBrandFilter = document.getElementById('itemBrandFilter');
+        if (itemBrandFilter) {
+            const cur = itemBrandFilter.value;
+            itemBrandFilter.innerHTML = '<option value="">All Brands</option>' + getBrands().map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+            itemBrandFilter.value = cur;
+        }
         const stgFilter = document.getElementById('stockStorageFilter');
         if (stgFilter) {
             const cur = stgFilter.value;
             stgFilter.innerHTML = '<option value="">All Storages</option>' + getStorages().map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
             stgFilter.value = cur;
+        }
+        const brandFilter = document.getElementById('stockBrandFilter');
+        if (brandFilter) {
+            const cur = brandFilter.value;
+            brandFilter.innerHTML = '<option value="">All Brands</option>' + getBrands().map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+            brandFilter.value = cur;
         }
     }
 
@@ -838,7 +1027,7 @@
         reader.onload = function (e) {
             try {
                 const data = JSON.parse(e.target.result);
-                if (!data.items && !data.storages && !data.categories) { showToast('Invalid file', 'error'); return; }
+                if (!data.items && !data.storages && !data.categories && !data.brands) { showToast('Invalid file', 'error'); return; }
                 if (confirm('Replace all current data?')) {
                     restoreData(data);
                     showToast('Imported!', 'success');
@@ -852,24 +1041,36 @@
     window.clearAllData = function () {
         if (!confirm('⚠️ Delete ALL data? This cannot be undone.')) return;
         if (!confirm('Are you absolutely sure?')) return;
-        saveStorages([]); saveCategories([]); saveItems([]); saveStock([]); saveShopping([]);
+        saveStorages([]); saveCategories([]); saveBrands([]); saveItems([]); saveStock([]); saveShopping([]);
         showToast('All data cleared', 'success');
         refreshCurrentPage(); refreshDropdowns();
     };
     window.loadSampleData = function () {
         if (!confirm('Load sample data? This will replace existing data.')) return;
         const now = new Date().toISOString();
+        // Storages
         const stg1 = { id: uid('stg'), name: 'Refrigerator', type: 'refrigerator', description: 'Kitchen — main fridge', createdAt: now };
         const stg2 = { id: uid('stg'), name: 'Storage Box', type: 'box', description: 'Dry goods box', createdAt: now };
         const stg3 = { id: uid('stg'), name: 'Rack A Floor 1', type: 'rack', description: 'Kitchen rack, ground floor', createdAt: now };
+        // Categories
         const cat1 = { id: uid('cat'), name: 'Kathod', description: 'Pulses & Lentils', createdAt: now };
         const cat2 = { id: uid('cat'), name: 'Dery', description: 'Dry fruits & nuts', createdAt: now };
         const cat3 = { id: uid('cat'), name: 'Masala', description: 'Spices & condiments', createdAt: now };
         const cat4 = { id: uid('cat'), name: 'Dairy', description: 'Milk products', createdAt: now };
-        const itm1 = { id: uid('itm'), brandName: 'Tata', itemName: 'Toor Dal', categoryId: cat1.id, size: 1, unit: 'kg', price: 180, notes: '', createdAt: now, updatedAt: now };
-        const itm2 = { id: uid('itm'), brandName: 'MDH', itemName: 'Turmeric Powder', categoryId: cat3.id, size: 100, unit: 'gm', price: 45, notes: '', createdAt: now, updatedAt: now };
-        const itm3 = { id: uid('itm'), brandName: 'Amul', itemName: 'Milk', categoryId: cat4.id, size: 1, unit: 'l', price: 60, notes: '', createdAt: now, updatedAt: now };
-        const itm4 = { id: uid('itm'), brandName: 'Happilo', itemName: 'Almonds', categoryId: cat2.id, size: 250, unit: 'gm', price: 350, notes: '', createdAt: now, updatedAt: now };
+        // Brands
+        const brd1 = { id: uid('brd'), name: 'Tata', description: 'Preferred for staples', createdAt: now };
+        const brd2 = { id: uid('brd'), name: 'MDH', description: 'Masala brand', createdAt: now };
+        const brd3 = { id: uid('brd'), name: 'Amul', description: 'Dairy regular', createdAt: now };
+        const brd4 = { id: uid('brd'), name: 'Happilo', description: 'Dry fruits', createdAt: now };
+        const brd5 = { id: uid('brd'), name: 'Fortune', description: 'Oil & atta', createdAt: now };
+        // Items
+        const itm1 = { id: uid('itm'), brandId: brd1.id, itemName: 'Toor Dal', categoryId: cat1.id, size: 1, unit: 'kg', price: 180, notes: '', createdAt: now, updatedAt: now };
+        const itm2 = { id: uid('itm'), brandId: brd2.id, itemName: 'Turmeric Powder', categoryId: cat3.id, size: 100, unit: 'gm', price: 45, notes: '', createdAt: now, updatedAt: now };
+        const itm3 = { id: uid('itm'), brandId: brd3.id, itemName: 'Milk', categoryId: cat4.id, size: 1, unit: 'l', price: 60, notes: '', createdAt: now, updatedAt: now };
+        const itm4 = { id: uid('itm'), brandId: brd4.id, itemName: 'Almonds', categoryId: cat2.id, size: 250, unit: 'gm', price: 350, notes: '', createdAt: now, updatedAt: now };
+        const itm5 = { id: uid('itm'), brandId: brd5.id, itemName: 'Sunflower Oil', categoryId: cat3.id, size: 1, unit: 'l', price: 140, notes: '', createdAt: now, updatedAt: now };
+        const itm6 = { id: uid('itm'), brandId: brd1.id, itemName: 'Salt', categoryId: cat3.id, size: 1, unit: 'kg', price: 25, notes: '', createdAt: now, updatedAt: now };
+        // Stock
         const exp1 = new Date(); exp1.setDate(exp1.getDate() + 5);
         const exp2 = new Date(); exp2.setDate(exp2.getDate() + 20);
         const exp3 = new Date(); exp3.setDate(exp3.getDate() + 180);
@@ -877,11 +1078,14 @@
             { id: uid('stk'), itemId: itm1.id, storageId: stg2.id, quantity: 3, minStock: 2, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
             { id: uid('stk'), itemId: itm2.id, storageId: stg3.id, quantity: 1, minStock: 1, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
             { id: uid('stk'), itemId: itm3.id, storageId: stg1.id, quantity: 2, minStock: 3, expiryDate: exp1.toISOString().split('T')[0], createdAt: now, updatedAt: now },
-            { id: uid('stk'), itemId: itm4.id, storageId: stg2.id, quantity: 0, minStock: 1, expiryDate: exp2.toISOString().split('T')[0], createdAt: now, updatedAt: now }
+            { id: uid('stk'), itemId: itm4.id, storageId: stg2.id, quantity: 0, minStock: 1, expiryDate: exp2.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm5.id, storageId: stg3.id, quantity: 2, minStock: 1, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm6.id, storageId: stg2.id, quantity: 1, minStock: 1, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now }
         ];
         saveStorages([stg1, stg2, stg3]);
         saveCategories([cat1, cat2, cat3, cat4]);
-        saveItems([itm1, itm2, itm3, itm4]);
+        saveBrands([brd1, brd2, brd3, brd4, brd5]);
+        saveItems([itm1, itm2, itm3, itm4, itm5, itm6]);
         saveStock(stock);
         saveShopping([]);
         showToast('Sample data loaded!', 'success');
@@ -891,11 +1095,11 @@
 
     // ─── Search listeners ────────────────────────────
     function attachSearchListeners() {
-        ['stockSearch', 'stockStorageFilter', 'stockStatusFilter'].forEach(id => {
+        ['stockSearch', 'stockBrandFilter', 'stockStorageFilter', 'stockStatusFilter'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('input', refreshStock);
         });
-        ['itemSearch', 'itemCategoryFilter'].forEach(id => {
+        ['itemSearch', 'itemCategoryFilter', 'itemBrandFilter'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('input', refreshItems);
         });

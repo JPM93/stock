@@ -7,9 +7,11 @@
     <title>GharSeva - Grocery Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
 </head>
 
 <body>
@@ -22,16 +24,25 @@
                 <small style="color:#94a3b8;font-size:0.7rem;">Grocery Manager</small>
             </div>
             <nav class="sidebar-nav">
-                <div class="nav-item"><button class="nav-link active" data-page="dashboard"><i class="fas fa-th-large"></i> Dashboard</button></div>
-                <div class="nav-item"><button class="nav-link" data-page="stock"><i class="fas fa-boxes-stacked"></i> Stock <span class="badge-count" id="stockBadgeCount">0</span></button></div>
-                <div class="nav-item"><button class="nav-link" data-page="items"><i class="fas fa-tag"></i> Item Master</button></div>
-                <div class="nav-item"><button class="nav-link" data-page="categories"><i class="fas fa-layer-group"></i> Categories</button></div>
-                <div class="nav-item"><button class="nav-link" data-page="storages"><i class="fas fa-warehouse"></i> Storages</button></div>
-                <div class="nav-item"><button class="nav-link" data-page="shopping"><i class="fas fa-cart-shopping"></i> Shopping List <span class="badge-count" id="shoppingBadgeCount">0</span></button></div>
-                <div class="nav-item"><button class="nav-link" data-page="settings"><i class="fas fa-cog"></i> Settings & Sync</button></div>
+                <div class="nav-item"><button class="nav-link active" data-page="dashboard"><i
+                            class="fas fa-th-large"></i> Dashboard</button></div>
+                <div class="nav-item"><button class="nav-link" data-page="stock"><i class="fas fa-boxes-stacked"></i>
+                        Stock <span class="badge-count" id="stockBadgeCount">0</span></button></div>
+                <div class="nav-item"><button class="nav-link" data-page="items"><i class="fas fa-tag"></i> Item
+                        Master</button></div>
+                <div class="nav-item"><button class="nav-link" data-page="brands"><i class="fas fa-copyright"></i> Brand
+                        Master</button></div>
+                <div class="nav-item"><button class="nav-link" data-page="categories"><i class="fas fa-layer-group"></i>
+                        Categories</button></div>
+                <div class="nav-item"><button class="nav-link" data-page="storages"><i class="fas fa-warehouse"></i>
+                        Storages</button></div>
+                <div class="nav-item"><button class="nav-link" data-page="shopping"><i class="fas fa-cart-shopping"></i>
+                        Shopping List <span class="badge-count" id="shoppingBadgeCount">0</span></button></div>
+                <div class="nav-item"><button class="nav-link" data-page="settings"><i class="fas fa-cog"></i> Settings
+                        & Sync</button></div>
             </nav>
             <div class="sidebar-footer">
-                <small style="color:#64748b;font-size:0.7rem;">GharSeva v1.0</small>
+                <small style="color:#64748b;font-size:0.7rem;">GharSeva v1.1</small>
             </div>
         </aside>
 
@@ -75,27 +86,50 @@
                 <div class="row g-3">
                     <div class="col-lg-6">
                         <div class="card-custom">
-                            <h6 class="fw-bold mb-3"><i class="fas fa-triangle-exclamation text-warning me-2"></i>Low Stock Alerts</h6>
+                            <h6 class="fw-bold mb-3"><i class="fas fa-triangle-exclamation text-warning me-2"></i>Low
+                                Stock Alerts</h6>
                             <div id="lowStockList" class="alert-list"></div>
                         </div>
                     </div>
                     <div class="col-lg-6">
                         <div class="card-custom">
-                            <h6 class="fw-bold mb-3"><i class="fas fa-calendar-xmark text-danger me-2"></i>Expiring Soon (30 days)</h6>
+                            <h6 class="fw-bold mb-3"><i class="fas fa-calendar-xmark text-danger me-2"></i>Expiring Soon
+                                (30 days)</h6>
                             <div id="expiringList" class="alert-list"></div>
                         </div>
                     </div>
                 </div>
 
-                <div class="card-custom mt-3">
-                    <h6 class="fw-bold mb-3"><i class="fas fa-clock-rotate-left me-2"></i>Recently Added Items</h6>
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead>
-                                <tr><th>Item</th><th>Category</th><th>Size</th><th>Price</th><th>Added</th></tr>
-                            </thead>
-                            <tbody id="recentItemsBody"></tbody>
-                        </table>
+                <div class="row g-3 mt-1">
+                    <div class="col-lg-6">
+                        <div class="card-custom">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0"><i class="fas fa-copyright text-primary me-2"></i>Top Brands
+                                    Used</h6>
+                                <button class="btn btn-sm btn-outline-custom" onclick="navigateTo('brands')">View
+                                    All</button>
+                            </div>
+                            <div id="brandUsageList"></div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card-custom">
+                            <h6 class="fw-bold mb-3"><i class="fas fa-clock-rotate-left me-2"></i>Recently Added Items
+                            </h6>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Item</th>
+                                            <th>Brand</th>
+                                            <th>Size</th>
+                                            <th>Price</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recentItemsBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -105,18 +139,23 @@
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0">📦 Available Stock</h5>
                     <div class="d-flex gap-2 flex-wrap">
-                        <input type="text" class="form-control form-control-sm" id="stockSearch" placeholder="🔍 Search..." style="max-width:200px;">
-                        <select class="form-select form-select-sm" id="stockStorageFilter" style="max-width:180px;">
+                        <input type="text" class="form-control form-control-sm" id="stockSearch"
+                            placeholder="🔍 Search..." style="max-width:180px;">
+                        <select class="form-select form-select-sm" id="stockBrandFilter" style="max-width:150px;">
+                            <option value="">All Brands</option>
+                        </select>
+                        <select class="form-select form-select-sm" id="stockStorageFilter" style="max-width:160px;">
                             <option value="">All Storages</option>
                         </select>
-                        <select class="form-select form-select-sm" id="stockStatusFilter" style="max-width:150px;">
+                        <select class="form-select form-select-sm" id="stockStatusFilter" style="max-width:140px;">
                             <option value="">All Status</option>
                             <option value="low">Low Stock</option>
                             <option value="out">Out of Stock</option>
                             <option value="expired">Expired</option>
                             <option value="expiring">Expiring Soon</option>
                         </select>
-                        <button class="btn btn-primary-custom btn-sm" onclick="openStockModal()"><i class="fas fa-plus me-1"></i>Add Stock</button>
+                        <button class="btn btn-primary-custom btn-sm" onclick="openStockModal()"><i
+                                class="fas fa-plus me-1"></i>Add Stock</button>
                     </div>
                 </div>
                 <div class="card-custom">
@@ -125,6 +164,7 @@
                             <thead>
                                 <tr>
                                     <th>Item</th>
+                                    <th>Brand</th>
                                     <th>Storage</th>
                                     <th>Qty</th>
                                     <th>Expiry</th>
@@ -144,18 +184,31 @@
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0">🏷️ Item Master</h5>
                     <div class="d-flex gap-2 flex-wrap">
-                        <input type="text" class="form-control form-control-sm" id="itemSearch" placeholder="🔍 Search..." style="max-width:200px;">
-                        <select class="form-select form-select-sm" id="itemCategoryFilter" style="max-width:180px;">
+                        <input type="text" class="form-control form-control-sm" id="itemSearch"
+                            placeholder="🔍 Search..." style="max-width:180px;">
+                        <select class="form-select form-select-sm" id="itemCategoryFilter" style="max-width:160px;">
                             <option value="">All Categories</option>
                         </select>
-                        <button class="btn btn-primary-custom btn-sm" onclick="openItemModal()"><i class="fas fa-plus me-1"></i>Add Item</button>
+                        <select class="form-select form-select-sm" id="itemBrandFilter" style="max-width:150px;">
+                            <option value="">All Brands</option>
+                        </select>
+                        <button class="btn btn-primary-custom btn-sm" onclick="openItemModal()"><i
+                                class="fas fa-plus me-1"></i>Add Item</button>
                     </div>
                 </div>
                 <div class="card-custom">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle">
                             <thead>
-                                <tr><th>Brand</th><th>Item</th><th>Category</th><th>Size</th><th>Unit</th><th>Price</th><th>Actions</th></tr>
+                                <tr>
+                                    <th>Brand</th>
+                                    <th>Item</th>
+                                    <th>Category</th>
+                                    <th>Size</th>
+                                    <th>Unit</th>
+                                    <th>Price</th>
+                                    <th>Actions</th>
+                                </tr>
                             </thead>
                             <tbody id="itemsBody"></tbody>
                         </table>
@@ -163,11 +216,22 @@
                 </div>
             </div>
 
+            <!-- Brand Master -->
+            <div class="section-page" id="page-brands">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold mb-0">©️ Brand Master</h5>
+                    <button class="btn btn-primary-custom btn-sm" onclick="openBrandModal()"><i
+                            class="fas fa-plus me-1"></i>Add Brand</button>
+                </div>
+                <div class="row g-3" id="brandsGrid"></div>
+            </div>
+
             <!-- Categories -->
             <div class="section-page" id="page-categories">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="fw-bold mb-0">📚 Category Master</h5>
-                    <button class="btn btn-primary-custom btn-sm" onclick="openCategoryModal()"><i class="fas fa-plus me-1"></i>Add Category</button>
+                    <button class="btn btn-primary-custom btn-sm" onclick="openCategoryModal()"><i
+                            class="fas fa-plus me-1"></i>Add Category</button>
                 </div>
                 <div class="row g-3" id="categoriesGrid"></div>
             </div>
@@ -176,7 +240,8 @@
             <div class="section-page" id="page-storages">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="fw-bold mb-0">🏠 Storage Master</h5>
-                    <button class="btn btn-primary-custom btn-sm" onclick="openStorageModal()"><i class="fas fa-plus me-1"></i>Add Storage</button>
+                    <button class="btn btn-primary-custom btn-sm" onclick="openStorageModal()"><i
+                            class="fas fa-plus me-1"></i>Add Storage</button>
                 </div>
                 <div class="row g-3" id="storagesGrid"></div>
             </div>
@@ -186,9 +251,12 @@
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                     <h5 class="fw-bold mb-0">🛒 Shopping List</h5>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-custom btn-sm" onclick="autoGenerateShoppingList()"><i class="fas fa-wand-magic-sparkles me-1"></i>Auto-generate from Low Stock</button>
-                        <button class="btn btn-primary-custom btn-sm" onclick="openShoppingModal()"><i class="fas fa-plus me-1"></i>Add Item</button>
-                        <button class="btn btn-outline-custom btn-sm" onclick="copyShoppingList()"><i class="fas fa-copy me-1"></i>Copy List</button>
+                        <button class="btn btn-outline-custom btn-sm" onclick="autoGenerateShoppingList()"><i
+                                class="fas fa-wand-magic-sparkles me-1"></i>Auto-generate</button>
+                        <button class="btn btn-primary-custom btn-sm" onclick="openShoppingModal()"><i
+                                class="fas fa-plus me-1"></i>Add Item</button>
+                        <button class="btn btn-outline-custom btn-sm" onclick="copyShoppingList()"><i
+                                class="fas fa-copy me-1"></i>Copy List</button>
                     </div>
                 </div>
                 <div class="card-custom">
@@ -211,8 +279,10 @@
                         <div class="card-custom">
                             <h6><i class="fas fa-upload me-2"></i>Import Data (JSON)</h6>
                             <p class="small text-muted mb-2">Backup file se data restore karein.</p>
-                            <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="importData(event)">
-                            <button class="btn btn-outline-custom" onclick="document.getElementById('importFileInput').click()">Import JSON</button>
+                            <input type="file" id="importFileInput" accept=".json" style="display:none;"
+                                onchange="importData(event)">
+                            <button class="btn btn-outline-custom"
+                                onclick="document.getElementById('importFileInput').click()">Import JSON</button>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -220,16 +290,21 @@
                             <h6><i class="fab fa-google-drive me-2"></i>Google Drive Sync</h6>
                             <div class="mb-2">
                                 <label class="form-label small">Google OAuth Client ID</label>
-                                <input type="text" class="form-control form-control-sm" id="gdriveClientId" placeholder="Your Client ID">
+                                <input type="text" class="form-control form-control-sm" id="gdriveClientId"
+                                    placeholder="Your Client ID">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small">Drive Folder Name</label>
-                                <input type="text" class="form-control form-control-sm" id="gdriveFolderName" placeholder="e.g., GharSevaBackup">
+                                <input type="text" class="form-control form-control-sm" id="gdriveFolderName"
+                                    placeholder="e.g., GharSevaBackup">
                             </div>
-                            <button class="btn btn-sm btn-primary-custom mb-2" onclick="saveGoogleDriveConfig()">💾 Save Config</button>
+                            <button class="btn btn-sm btn-primary-custom mb-2" onclick="saveGoogleDriveConfig()">💾 Save
+                                Config</button>
                             <div class="d-flex gap-2 flex-wrap">
-                                <button class="google-drive-btn" onclick="uploadToGoogleDrive()"><i class="fab fa-google-drive" style="color:#4285f4;"></i> Backup</button>
-                                <button class="google-drive-btn" onclick="listGoogleDriveFiles()"><i class="fas fa-cloud-arrow-down"></i> Restore</button>
+                                <button class="google-drive-btn" onclick="uploadToGoogleDrive()"><i
+                                        class="fab fa-google-drive" style="color:#4285f4;"></i> Backup</button>
+                                <button class="google-drive-btn" onclick="listGoogleDriveFiles()"><i
+                                        class="fas fa-cloud-arrow-down"></i> Restore</button>
                             </div>
                             <div id="driveStatus" class="mt-2"></div>
                             <div id="driveFileList" class="mt-3 small"></div>
@@ -258,10 +333,15 @@
     <div class="modal fade modal-custom" id="storageModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title fw-bold" id="storageModalTitle">Add Storage</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="storageModalTitle">Add Storage</h5><button type="button"
+                        class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
                 <div class="modal-body">
                     <input type="hidden" id="storageEditId">
-                    <div class="mb-3"><label class="form-label fw-semibold">Storage Name *</label><input type="text" class="form-control" id="storageName" placeholder="e.g., Refrigerator, Storage Box, Rack A Floor 1"></div>
+                    <div class="mb-3"><label class="form-label fw-semibold">Storage Name *</label><input type="text"
+                            class="form-control" id="storageName"
+                            placeholder="e.g., Refrigerator, Storage Box, Rack A Floor 1"></div>
                     <div class="mb-3"><label class="form-label fw-semibold">Type</label>
                         <select class="form-select" id="storageType">
                             <option value="rack">Rack / Shelf</option>
@@ -272,9 +352,13 @@
                             <option value="other">Other</option>
                         </select>
                     </div>
-                    <div class="mb-3"><label class="form-label fw-semibold">Location / Notes</label><textarea class="form-control" id="storageDescription" rows="2" placeholder="e.g., Kitchen corner, 2nd floor"></textarea></div>
+                    <div class="mb-3"><label class="form-label fw-semibold">Location / Notes</label><textarea
+                            class="form-control" id="storageDescription" rows="2"
+                            placeholder="e.g., Kitchen corner, 2nd floor"></textarea></div>
                 </div>
-                <div class="modal-footer"><button class="btn btn-outline-custom" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom" onclick="saveStorage()">💾 Save</button></div>
+                <div class="modal-footer"><button class="btn btn-outline-custom"
+                        data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
+                        onclick="saveStorage()">💾 Save</button></div>
             </div>
         </div>
     </div>
@@ -283,13 +367,43 @@
     <div class="modal fade modal-custom" id="categoryModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title fw-bold" id="categoryModalTitle">Add Category</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="categoryModalTitle">Add Category</h5><button type="button"
+                        class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
                 <div class="modal-body">
                     <input type="hidden" id="categoryEditId">
-                    <div class="mb-3"><label class="form-label fw-semibold">Category Name *</label><input type="text" class="form-control" id="categoryName" placeholder="e.g., Kathod, Dery, Masala"></div>
-                    <div class="mb-3"><label class="form-label fw-semibold">Description</label><textarea class="form-control" id="categoryDescription" rows="2"></textarea></div>
+                    <div class="mb-3"><label class="form-label fw-semibold">Category Name *</label><input type="text"
+                            class="form-control" id="categoryName" placeholder="e.g., Kathod, Dery, Masala"></div>
+                    <div class="mb-3"><label class="form-label fw-semibold">Description</label><textarea
+                            class="form-control" id="categoryDescription" rows="2"></textarea></div>
                 </div>
-                <div class="modal-footer"><button class="btn btn-outline-custom" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom" onclick="saveCategory()">💾 Save</button></div>
+                <div class="modal-footer"><button class="btn btn-outline-custom"
+                        data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
+                        onclick="saveCategory()">💾 Save</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Brand Modal -->
+    <div class="modal fade modal-custom" id="brandModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="brandModalTitle">Add Brand</h5><button type="button"
+                        class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="brandEditId">
+                    <div class="mb-3"><label class="form-label fw-semibold">Brand Name *</label><input type="text"
+                            class="form-control" id="brandName" placeholder="e.g., Tata, Amul, MDH"></div>
+                    <div class="mb-3"><label class="form-label fw-semibold">Description / Notes</label><textarea
+                            class="form-control" id="brandDescription" rows="2"
+                            placeholder="e.g., Preferred supplier, Regular brand"></textarea></div>
+                </div>
+                <div class="modal-footer"><button class="btn btn-outline-custom"
+                        data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
+                        onclick="saveBrand()">💾 Save</button></div>
             </div>
         </div>
     </div>
@@ -298,33 +412,53 @@
     <div class="modal fade modal-custom" id="itemModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title fw-bold" id="itemModalTitle">Add Item</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="itemModalTitle">Add Item</h5><button type="button"
+                        class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
                 <div class="modal-body">
                     <input type="hidden" id="itemEditId">
                     <div class="row g-3">
-                        <div class="col-md-6"><label class="form-label fw-semibold">Brand Name</label><input type="text" class="form-control" id="itemBrand" placeholder="e.g., Tata, Amul, MDH"></div>
-                        <div class="col-md-6"><label class="form-label fw-semibold">Item Name *</label><input type="text" class="form-control" id="itemName" placeholder="e.g., Salt, Milk, Turmeric"></div>
+                        <div class="col-md-6"><label class="form-label fw-semibold">Brand *</label>
+                            <select class="form-select" id="itemBrand"></select>
+                        </div>
+                        <div class="col-md-6"><label class="form-label fw-semibold">Item Name *</label><input
+                                type="text" class="form-control" id="itemName" placeholder="e.g., Salt, Milk, Turmeric">
+                        </div>
                         <div class="col-md-6"><label class="form-label fw-semibold">Category *</label>
                             <select class="form-select" id="itemCategory"></select>
                         </div>
-                        <div class="col-md-3"><label class="form-label fw-semibold">Size *</label><input type="number" class="form-control" id="itemSize" placeholder="e.g., 1" step="0.01" min="0"></div>
-                        <div class="col-md-3"><label class="form-label fw-semibold">Unit *</label>
-                            <select class="form-select" id="itemUnit">
-                                <option value="gm">gm</option>
-                                <option value="kg">kg</option>
-                                <option value="ml">ml</option>
-                                <option value="l">l</option>
-                                <option value="pcs">pcs</option>
-                                <option value="pack">pack</option>
-                                <option value="dozen">dozen</option>
-                                <option value="box">box</option>
-                            </select>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="w-100">
+                                <div class="row g-2">
+                                    <div class="col-6"><label class="form-label fw-semibold">Size *</label><input
+                                            type="number" class="form-control" id="itemSize" placeholder="1" step="0.01"
+                                            min="0"></div>
+                                    <div class="col-6"><label class="form-label fw-semibold">Unit *</label>
+                                        <select class="form-select" id="itemUnit">
+                                            <option value="gm">gm</option>
+                                            <option value="kg">kg</option>
+                                            <option value="ml">ml</option>
+                                            <option value="l">l</option>
+                                            <option value="pcs">pcs</option>
+                                            <option value="pack">pack</option>
+                                            <option value="dozen">dozen</option>
+                                            <option value="box">box</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6"><label class="form-label fw-semibold">Price (₹) *</label><input type="number" class="form-control" id="itemPrice" placeholder="e.g., 25" step="0.01" min="0"></div>
-                        <div class="col-md-6"><label class="form-label fw-semibold">Notes</label><input type="text" class="form-control" id="itemNotes" placeholder="Optional notes"></div>
+                        <div class="col-md-6"><label class="form-label fw-semibold">Price (₹) *</label><input
+                                type="number" class="form-control" id="itemPrice" placeholder="e.g., 25" step="0.01"
+                                min="0"></div>
+                        <div class="col-md-6"><label class="form-label fw-semibold">Notes</label><input type="text"
+                                class="form-control" id="itemNotes" placeholder="Optional"></div>
                     </div>
                 </div>
-                <div class="modal-footer"><button class="btn btn-outline-custom" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom" onclick="saveItem()">💾 Save</button></div>
+                <div class="modal-footer"><button class="btn btn-outline-custom"
+                        data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
+                        onclick="saveItem()">💾 Save</button></div>
             </div>
         </div>
     </div>
@@ -333,20 +467,34 @@
     <div class="modal fade modal-custom" id="stockModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title fw-bold" id="stockModalTitle">Add Stock</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="stockModalTitle">Add Stock</h5><button type="button"
+                        class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
                 <div class="modal-body">
                     <input type="hidden" id="stockEditId">
                     <div class="row g-3">
-                        <div class="col-md-6"><label class="form-label fw-semibold">Item *</label><select class="form-select" id="stockItem"></select></div>
-                        <div class="col-md-6"><label class="form-label fw-semibold">Storage Location *</label><select class="form-select" id="stockStorage"></select></div>
-                        <div class="col-md-3"><label class="form-label fw-semibold">Quantity *</label><input type="number" class="form-control" id="stockQuantity" placeholder="e.g., 2" step="0.01" min="0"></div>
-                        <div class="col-md-3"><label class="form-label fw-semibold">Min Alert Level</label><input type="number" class="form-control" id="stockMinStock" placeholder="e.g., 1" step="0.01" min="0" value="1"></div>
-                        <div class="col-md-3"><label class="form-label fw-semibold">Purchase Date</label><input type="date" class="form-control" id="stockPurchaseDate"></div>
-                        <div class="col-md-3"><label class="form-label fw-semibold">Expiry Date</label><input type="date" class="form-control" id="stockExpiry"></div>
-                        <div class="col-12"><label class="form-label fw-semibold">Notes</label><input type="text" class="form-control" id="stockNotes" placeholder="Optional notes"></div>
+                        <div class="col-md-6"><label class="form-label fw-semibold">Item *</label><select
+                                class="form-select" id="stockItem"></select></div>
+                        <div class="col-md-6"><label class="form-label fw-semibold">Storage Location *</label><select
+                                class="form-select" id="stockStorage"></select></div>
+                        <div class="col-md-3"><label class="form-label fw-semibold">Quantity *</label><input
+                                type="number" class="form-control" id="stockQuantity" placeholder="e.g., 2" step="0.01"
+                                min="0"></div>
+                        <div class="col-md-3"><label class="form-label fw-semibold">Min Alert Level</label><input
+                                type="number" class="form-control" id="stockMinStock" placeholder="e.g., 1" step="0.01"
+                                min="0" value="1"></div>
+                        <div class="col-md-3"><label class="form-label fw-semibold">Purchase Date</label><input
+                                type="date" class="form-control" id="stockPurchaseDate"></div>
+                        <div class="col-md-3"><label class="form-label fw-semibold">Expiry Date</label><input
+                                type="date" class="form-control" id="stockExpiry"></div>
+                        <div class="col-12"><label class="form-label fw-semibold">Notes</label><input type="text"
+                                class="form-control" id="stockNotes" placeholder="Optional"></div>
                     </div>
                 </div>
-                <div class="modal-footer"><button class="btn btn-outline-custom" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom" onclick="saveStock()">💾 Save</button></div>
+                <div class="modal-footer"><button class="btn btn-outline-custom"
+                        data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
+                        onclick="saveStock()">💾 Save</button></div>
             </div>
         </div>
     </div>
@@ -355,15 +503,25 @@
     <div class="modal fade modal-custom" id="shoppingModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title fw-bold" id="shoppingModalTitle">Add to Shopping List</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="shoppingModalTitle">Add to Shopping List</h5><button
+                        type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
                 <div class="modal-body">
                     <input type="hidden" id="shoppingEditId">
-                    <div class="mb-3"><label class="form-label fw-semibold">Item / Description *</label><input type="text" class="form-control" id="shoppingName" placeholder="e.g., Amul Milk 1L"></div>
-                    <div class="mb-3"><label class="form-label fw-semibold">Quantity</label><input type="text" class="form-control" id="shoppingQty" placeholder="e.g., 2 packets, 1 kg"></div>
-                    <div class="mb-3"><label class="form-label fw-semibold">Estimated Price (₹)</label><input type="number" class="form-control" id="shoppingPrice" placeholder="e.g., 50" step="0.01" min="0"></div>
-                    <div class="mb-3"><label class="form-label fw-semibold">Notes</label><input type="text" class="form-control" id="shoppingNotes" placeholder="Optional"></div>
+                    <div class="mb-3"><label class="form-label fw-semibold">Item / Description *</label><input
+                            type="text" class="form-control" id="shoppingName" placeholder="e.g., Amul Milk 1L"></div>
+                    <div class="mb-3"><label class="form-label fw-semibold">Quantity</label><input type="text"
+                            class="form-control" id="shoppingQty" placeholder="e.g., 2 packets, 1 kg"></div>
+                    <div class="mb-3"><label class="form-label fw-semibold">Estimated Price (₹)</label><input
+                            type="number" class="form-control" id="shoppingPrice" placeholder="e.g., 50" step="0.01"
+                            min="0"></div>
+                    <div class="mb-3"><label class="form-label fw-semibold">Notes</label><input type="text"
+                            class="form-control" id="shoppingNotes" placeholder="Optional"></div>
                 </div>
-                <div class="modal-footer"><button class="btn btn-outline-custom" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom" onclick="saveShoppingItem()">💾 Save</button></div>
+                <div class="modal-footer"><button class="btn btn-outline-custom"
+                        data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
+                        onclick="saveShoppingItem()">💾 Save</button></div>
             </div>
         </div>
     </div>
