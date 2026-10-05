@@ -20,6 +20,7 @@
     function formatDate(ds) { if (!ds) return '—'; const d = new Date(ds + 'T00:00:00'); return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); }
     function formatCurrency(n) { return '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
     function initials(name) { if (!name) return '?'; return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase(); }
+    function isMobile() { return window.innerWidth < 768; }
 
     // ─── Data Accessors ──────────────────────────────
     function getStorages() { return load('storages', []); }
@@ -37,13 +38,9 @@
 
     function getAllData() {
         return {
-            storages: getStorages(),
-            categories: getCategories(),
-            brands: getBrands(),
-            items: getItems(),
-            stock: getStock(),
-            shopping: getShopping(),
-            exportDate: new Date().toISOString()
+            storages: getStorages(), categories: getCategories(), brands: getBrands(),
+            items: getItems(), stock: getStock(), shopping: getShopping(),
+            exportDate: new Date().toISOString(), version: '1.2'
         };
     }
     function restoreData(d) {
@@ -59,6 +56,36 @@
     function getBrandById(id) { return getBrands().find(b => b.id === id); }
     function getItemById(id) { return getItems().find(i => i.id === id); }
 
+    // Effective min alert: item level
+    function getMinAlert(item) {
+        if (!item) return 1;
+        return Number(item.minAlert) || 0;
+    }
+    // Selling price (fallback to MRP)
+    function getSellingPrice(item) {
+        if (!item) return 0;
+        if (item.price !== undefined && item.price !== null && item.price !== '') return Number(item.price) || 0;
+        return Number(item.mrp) || 0;
+    }
+
+    // ─── Mobile Drawer ────────────────────────────────
+    function openSidebar() {
+        const sb = document.getElementById('sidebar');
+        const ov = document.getElementById('sidebarOverlay');
+        if (!sb) return;
+        sb.classList.add('open');
+        if (ov) ov.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeSidebar() {
+        const sb = document.getElementById('sidebar');
+        const ov = document.getElementById('sidebarOverlay');
+        if (!sb) return;
+        sb.classList.remove('open');
+        if (ov) ov.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+
     // ─── Navigation ──────────────────────────────────
     function navigateTo(page) {
         currentPage = page;
@@ -72,8 +99,30 @@
             shopping: '🛒 Shopping List', settings: '⚙️ Settings & Sync'
         };
         document.getElementById('pageTitle').textContent = titles[page] || page;
+
+        // FAB visible on specific pages (mobile)
+        const fab = document.getElementById('mobileFab');
+        if (fab) {
+            if (isMobile() && ['stock', 'items', 'brands', 'categories', 'storages'].includes(page)) {
+                fab.style.display = 'flex';
+                fab.onclick = function () {
+                    if (page === 'stock') openStockModal();
+                    else if (page === 'items') openItemModal();
+                    else if (page === 'brands') openBrandModal();
+                    else if (page === 'categories') openCategoryModal();
+                    else if (page === 'storages') openStorageModal();
+                };
+            } else {
+                fab.style.display = 'none';
+            }
+        }
+
         refreshCurrentPage();
         if (page === 'settings') loadDriveConfigInputs();
+
+        // Auto-close drawer on mobile
+        if (isMobile()) closeSidebar();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     window.navigateTo = navigateTo;
 
@@ -90,7 +139,11 @@
         updateBadges();
     }
     function updateBadges() {
-        const lowStock = getStock().filter(s => { const q = Number(s.quantity) || 0; const min = Number(s.minStock) || 1; return q > 0 && q <= min; }).length;
+        const lowStock = getStock().filter(s => {
+            const item = getItemById(s.itemId); const min = getMinAlert(item);
+            const q = Number(s.quantity) || 0;
+            return q > 0 && q <= min;
+        }).length;
         const outOfStock = getStock().filter(s => (Number(s.quantity) || 0) <= 0).length;
         document.getElementById('stockBadgeCount').textContent = lowStock + outOfStock;
         const shoppingActive = getShopping().filter(s => !s.done).length;
@@ -103,12 +156,16 @@
         document.getElementById('statTotalItems').textContent = items.length;
         document.getElementById('statTotalStock').textContent = stock.length;
 
-        const lowStock = stock.filter(s => { const q = Number(s.quantity) || 0; const min = Number(s.minStock) || 1; return q > 0 && q <= min; });
+        const lowStock = stock.filter(s => {
+            const item = getItemById(s.itemId); const min = getMinAlert(item);
+            const q = Number(s.quantity) || 0;
+            return q > 0 && q <= min;
+        });
         const outOfStock = stock.filter(s => (Number(s.quantity) || 0) <= 0);
         document.getElementById('statLowStock').textContent = lowStock.length + outOfStock.length;
 
         let totalValue = 0;
-        stock.forEach(s => { const item = getItemById(s.itemId); if (item) totalValue += (Number(item.price) || 0) * (Number(s.quantity) || 0); });
+        stock.forEach(s => { const item = getItemById(s.itemId); if (item) totalValue += getSellingPrice(item) * (Number(s.quantity) || 0); });
         document.getElementById('statInventoryValue').textContent = formatCurrency(totalValue);
 
         // Low stock alerts
@@ -120,8 +177,12 @@
                 const item = getItemById(s.itemId); if (!item) return '';
                 const brand = getBrandById(item.brandId);
                 const isOut = (Number(s.quantity) || 0) <= 0;
+                const min = getMinAlert(item);
                 return `<div class="alert-item ${isOut ? 'danger' : ''}">
-                    <div><strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || 'Unknown')}</small></div>
+                    <div style="min-width:0;flex:1;">
+                        <strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br>
+                        <small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || 'Unknown')} · Alert ≤ ${min}</small>
+                    </div>
                     <span class="badge-soft ${isOut ? 'red' : 'orange'}">${isOut ? 'Out' : (Number(s.quantity)) + ' left'}</span>
                 </div>`;
             }).join('');
@@ -144,16 +205,17 @@
                 const brand = getBrandById(item.brandId);
                 const d = new Date(s.expiryDate); const days = Math.ceil((d - today) / 86400000);
                 return `<div class="alert-item">
-                    <div><strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || '')}</small></div>
+                    <div style="min-width:0;flex:1;">
+                        <strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br>
+                        <small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || '')}</small>
+                    </div>
                     <span class="badge-soft orange">${days}d</span>
                 </div>`;
             }).join('');
         }
 
-        // Brand usage
         refreshBrandUsageWidget();
 
-        // Recent items
         const recent = [...items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
         const tbody = document.getElementById('recentItemsBody');
         if (!recent.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><i class="fas fa-inbox"></i><p>No items yet.</p></td></tr>'; }
@@ -164,7 +226,7 @@
                     <td>${escapeHtml(i.itemName)}</td>
                     <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                     <td>${i.size} ${i.unit}</td>
-                    <td>${formatCurrency(i.price)}</td>
+                    <td>${formatCurrency(getSellingPrice(i))}</td>
                 </tr>`;
             }).join('');
         }
@@ -180,13 +242,11 @@
         const usage = brands.map(b => {
             const brandItems = items.filter(i => i.brandId === b.id);
             const itemCount = brandItems.length;
-            let stockCount = 0;
-            let value = 0;
+            let stockCount = 0, value = 0;
             brandItems.forEach(i => {
-                const stockEntries = getStock().filter(s => s.itemId === i.id);
-                stockEntries.forEach(s => {
+                getStock().filter(s => s.itemId === i.id).forEach(s => {
                     stockCount += Number(s.quantity) || 0;
-                    value += (Number(i.price) || 0) * (Number(s.quantity) || 0);
+                    value += getSellingPrice(i) * (Number(s.quantity) || 0);
                 });
             });
             return { id: b.id, name: b.name, itemCount, stockCount, value };
@@ -218,17 +278,17 @@
         const iconMap = { rack: 'fa-layer-group', box: 'fa-box', refrigerator: 'fa-snowflake', cabinet: 'fa-cabinet-filing', room: 'fa-door-open', other: 'fa-cube' };
         grid.innerHTML = storages.map(s => {
             const stockCount = getStock().filter(st => st.storageId === s.id).length;
-            return `<div class="col-md-4 col-sm-6">
+            return `<div class="col-12 col-sm-6 col-lg-4">
                 <div class="master-card">
                     <div class="d-flex gap-2 mb-2">
                         <div class="master-icon"><i class="fas ${iconMap[s.type] || 'fa-cube'}"></i></div>
-                        <div>
+                        <div style="min-width:0;">
                             <h6 class="fw-bold mb-0">${escapeHtml(s.name)}</h6>
                             <small class="text-muted">${escapeHtml(s.type || 'other')}</small>
                         </div>
                     </div>
                     <p class="small text-muted mb-2">${escapeHtml(s.description || 'No description')}</p>
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                         <span class="badge-soft green">${stockCount} item${stockCount !== 1 ? 's' : ''}</span>
                         <div>
                             <button class="btn btn-sm btn-outline-primary me-1" onclick="openStorageModal('edit','${s.id}')"><i class="fas fa-edit"></i></button>
@@ -261,8 +321,7 @@
         const editId = document.getElementById('storageEditId').value;
         const storages = getStorages();
         const data = {
-            id: editId || uid('stg'),
-            name,
+            id: editId || uid('stg'), name,
             type: document.getElementById('storageType').value,
             description: document.getElementById('storageDescription').value.trim(),
             createdAt: editId ? (getStorageById(editId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
@@ -291,17 +350,17 @@
         const colors = ['green', 'blue', 'orange', 'purple', 'red'];
         grid.innerHTML = cats.map((c, idx) => {
             const itemCount = getItems().filter(i => i.categoryId === c.id).length;
-            return `<div class="col-md-4 col-sm-6">
+            return `<div class="col-12 col-sm-6 col-lg-4">
                 <div class="master-card">
                     <div class="d-flex gap-2 mb-2">
                         <div class="master-icon category"><i class="fas fa-tag"></i></div>
-                        <div>
+                        <div style="min-width:0;">
                             <h6 class="fw-bold mb-0">${escapeHtml(c.name)}</h6>
                             <small class="text-muted">Category</small>
                         </div>
                     </div>
                     <p class="small text-muted mb-2">${escapeHtml(c.description || 'No description')}</p>
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                         <span class="badge-soft ${colors[idx % colors.length]}">${itemCount} item${itemCount !== 1 ? 's' : ''}</span>
                         <div>
                             <button class="btn btn-sm btn-outline-primary me-1" onclick="openCategoryModal('edit','${c.id}')"><i class="fas fa-edit"></i></button>
@@ -332,8 +391,7 @@
         const editId = document.getElementById('categoryEditId').value;
         const cats = getCategories();
         const data = {
-            id: editId || uid('cat'),
-            name,
+            id: editId || uid('cat'), name,
             description: document.getElementById('categoryDescription').value.trim(),
             createdAt: editId ? (getCategoryById(editId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
         };
@@ -367,7 +425,7 @@
             brandItems.forEach(i => {
                 getStock().filter(s => s.itemId === i.id).forEach(s => {
                     stockUnits += Number(s.quantity) || 0;
-                    value += (Number(i.price) || 0) * (Number(s.quantity) || 0);
+                    value += getSellingPrice(i) * (Number(s.quantity) || 0);
                 });
             });
             return { brand: b, itemCount, stockUnits, value };
@@ -378,7 +436,7 @@
         grid.innerHTML = data.map(d => {
             const b = d.brand;
             const pct = (d.itemCount / maxItems) * 100;
-            return `<div class="col-md-4 col-sm-6">
+            return `<div class="col-12 col-sm-6 col-lg-4">
                 <div class="master-card">
                     <div class="d-flex gap-2 mb-3">
                         <div class="master-icon brand" style="font-weight:800;font-size:0.95rem;">${escapeHtml(initials(b.name))}</div>
@@ -399,7 +457,7 @@
                         <span class="badge-soft blue"><i class="fas fa-cubes me-1"></i>${d.stockUnits.toFixed(0)} units</span>
                         <span class="badge-soft green"><i class="fas fa-indian-rupee-sign me-1"></i>${formatCurrency(d.value)}</span>
                     </div>
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                         <button class="btn btn-sm btn-outline-custom" onclick="viewBrandItems('${b.id}')"><i class="fas fa-list me-1"></i>Items</button>
                         <div>
                             <button class="btn btn-sm btn-outline-primary me-1" onclick="openBrandModal('edit','${b.id}')"><i class="fas fa-edit"></i></button>
@@ -433,8 +491,7 @@
             showToast('Brand already exists', 'warning'); return;
         }
         const data = {
-            id: editId || uid('brd'),
-            name,
+            id: editId || uid('brd'), name,
             description: document.getElementById('brandDescription').value.trim(),
             createdAt: editId ? (getBrandById(editId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
         };
@@ -457,7 +514,6 @@
         const brand = getBrandById(brandId); if (!brand) return;
         const brandItems = getItems().filter(i => i.brandId === brandId);
         if (!brandItems.length) { showToast(`No items for ${brand.name} yet`, 'info'); return; }
-        // Switch to items page filtered by brand
         navigateTo('items');
         setTimeout(() => {
             const filter = document.getElementById('itemBrandFilter');
@@ -468,6 +524,7 @@
     // ─── Item Master ─────────────────────────────────
     function refreshItems() {
         const tbody = document.getElementById('itemsBody');
+        const mob = document.getElementById('itemsMobileList');
         const search = (document.getElementById('itemSearch')?.value || '').toLowerCase();
         const catFilter = document.getElementById('itemCategoryFilter')?.value || '';
         const brandFilter = document.getElementById('itemBrandFilter')?.value || '';
@@ -477,22 +534,67 @@
         if (brandFilter) items = items.filter(i => i.brandId === brandFilter);
         items = items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        if (!items.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-tag"></i><p>No items found.</p></td></tr>'; return; }
+        if (!items.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="fas fa-tag"></i><p>No items found.</p></td></tr>';
+            mob.innerHTML = '<div class="empty-state"><i class="fas fa-tag"></i><p>No items found.</p></div>';
+            return;
+        }
+
+        // Desktop table
         tbody.innerHTML = items.map(i => {
             const cat = getCategoryById(i.categoryId);
             const brand = getBrandById(i.brandId);
+            const mrp = Number(i.mrp) || 0;
+            const price = getSellingPrice(i);
+            const discount = mrp > price && mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0;
             return `<tr>
                 <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td><strong>${escapeHtml(i.itemName)}</strong></td>
                 <td>${cat ? `<span class="badge-soft blue">${escapeHtml(cat.name)}</span>` : '<span class="text-muted">—</span>'}</td>
-                <td>${i.size}</td>
-                <td><span class="badge-soft gray">${escapeHtml(i.unit)}</span></td>
-                <td><strong>${formatCurrency(i.price)}</strong></td>
+                <td>${i.size} <span class="badge-soft gray">${escapeHtml(i.unit)}</span></td>
+                <td>${mrp ? formatCurrency(mrp) : '<span class="text-muted">—</span>'}</td>
+                <td><strong>${formatCurrency(price)}</strong>${discount ? `<br><small class="text-success">${discount}% off</small>` : ''}</td>
+                <td><span class="badge-soft orange">≤ ${getMinAlert(i)}</span></td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="openItemModal('edit','${i.id}')"><i class="fas fa-edit"></i></button>
                     <button class="btn btn-sm btn-outline-danger" onclick="deleteItem('${i.id}')"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>`;
+        }).join('');
+
+        // Mobile cards
+        mob.innerHTML = items.map(i => {
+            const cat = getCategoryById(i.categoryId);
+            const brand = getBrandById(i.brandId);
+            const mrp = Number(i.mrp) || 0;
+            const price = getSellingPrice(i);
+            const discount = mrp > price && mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0;
+            return `<div class="mobile-card">
+                <div class="mobile-card-header">
+                    <div style="min-width:0;flex:1;">
+                        <div class="mobile-card-title">${escapeHtml(i.itemName)}</div>
+                        <div class="mobile-card-sub">${i.size} ${escapeHtml(i.unit)} ${cat ? '· ' + escapeHtml(cat.name) : ''}</div>
+                    </div>
+                    ${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : ''}
+                </div>
+                <div class="mobile-card-row">
+                    <span class="label">MRP</span>
+                    <span>${mrp ? formatCurrency(mrp) : '—'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="label">Selling Price</span>
+                    <span><strong>${formatCurrency(price)}</strong> ${discount ? `<span class="badge-soft green">${discount}% off</span>` : ''}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="label">Min Alert Level</span>
+                    <span class="badge-soft orange">≤ ${getMinAlert(i)}</span>
+                </div>
+                ${i.notes ? `<div class="mobile-card-row"><span class="label">Notes</span><span>${escapeHtml(i.notes)}</span></div>` : ''}
+                <div class="mobile-card-actions">
+                    <button class="btn btn-outline-primary" onclick="openItemModal('edit','${i.id}')"><i class="fas fa-edit me-1"></i>Edit</button>
+                    <button class="btn btn-outline-danger" onclick="deleteItem('${i.id}')"><i class="fas fa-trash me-1"></i>Delete</button>
+                </div>
+            </div>`;
         }).join('');
     }
     window.openItemModal = function (mode, id) {
@@ -503,7 +605,9 @@
         document.getElementById('itemName').value = '';
         document.getElementById('itemSize').value = '';
         document.getElementById('itemUnit').value = 'gm';
+        document.getElementById('itemMrp').value = '';
         document.getElementById('itemPrice').value = '';
+        document.getElementById('itemMinAlert').value = '1';
         document.getElementById('itemNotes').value = '';
         populateDropdown('itemBrand', getBrands().map(b => ({ id: b.id, label: b.name })), false);
         populateDropdown('itemCategory', getCategories().map(c => ({ id: c.id, label: c.name })), false);
@@ -516,7 +620,9 @@
             document.getElementById('itemCategory').value = i.categoryId || '';
             document.getElementById('itemSize').value = i.size;
             document.getElementById('itemUnit').value = i.unit;
-            document.getElementById('itemPrice').value = i.price;
+            document.getElementById('itemMrp').value = i.mrp || '';
+            document.getElementById('itemPrice').value = i.price || '';
+            document.getElementById('itemMinAlert').value = getMinAlert(i);
             document.getElementById('itemNotes').value = i.notes || '';
         }
         new bootstrap.Modal(document.getElementById('itemModal')).show();
@@ -530,19 +636,20 @@
         if (!categoryId) { showToast('Category required', 'warning'); return; }
         const size = parseFloat(document.getElementById('itemSize').value);
         if (!size || size <= 0) { showToast('Valid size required', 'warning'); return; }
+        const mrp = parseFloat(document.getElementById('itemMrp').value);
+        if (isNaN(mrp) || mrp < 0) { showToast('Valid MRP required', 'warning'); return; }
         const price = parseFloat(document.getElementById('itemPrice').value);
         if (isNaN(price) || price < 0) { showToast('Valid price required', 'warning'); return; }
+        const minAlert = parseFloat(document.getElementById('itemMinAlert').value);
+        if (isNaN(minAlert) || minAlert < 0) { showToast('Valid min alert level required', 'warning'); return; }
 
         const editId = document.getElementById('itemEditId').value;
         const items = getItems();
         const data = {
             id: editId || uid('itm'),
-            brandId,
-            itemName,
-            categoryId,
-            size,
-            unit: document.getElementById('itemUnit').value,
-            price,
+            brandId, itemName, categoryId,
+            size, unit: document.getElementById('itemUnit').value,
+            mrp, price, minAlert,
             notes: document.getElementById('itemNotes').value.trim(),
             createdAt: editId ? (getItemById(editId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -552,7 +659,7 @@
         saveItems(items);
         bootstrap.Modal.getInstance(document.getElementById('itemModal')).hide();
         showToast(editId ? 'Item updated!' : 'Item added!', 'success');
-        refreshItems(); refreshDropdowns(); refreshDashboard();
+        refreshItems(); refreshDropdowns(); refreshDashboard(); updateBadges();
     };
     window.deleteItem = function (id) {
         const used = getStock().filter(s => s.itemId === id).length;
@@ -565,8 +672,9 @@
 
     // ─── Stock ───────────────────────────────────────
     function getStockStatus(s) {
+        const item = getItemById(s.itemId);
         const q = Number(s.quantity) || 0;
-        const min = Number(s.minStock) || 1;
+        const min = getMinAlert(item);
         if (q <= 0) return { label: 'Out of Stock', cls: 'red' };
         if (s.expiryDate && new Date(s.expiryDate) < new Date()) return { label: 'Expired', cls: 'red' };
         if (q <= min) return { label: 'Low Stock', cls: 'orange' };
@@ -578,6 +686,7 @@
     }
     function refreshStock() {
         const tbody = document.getElementById('stockBody');
+        const mob = document.getElementById('stockMobileList');
         const search = (document.getElementById('stockSearch')?.value || '').toLowerCase();
         const brandFilter = document.getElementById('stockBrandFilter')?.value || '';
         const storageFilter = document.getElementById('stockStorageFilter')?.value || '';
@@ -585,16 +694,8 @@
 
         let stock = getStock();
         if (storageFilter) stock = stock.filter(s => s.storageId === storageFilter);
-        if (brandFilter) {
-            stock = stock.filter(s => { const item = getItemById(s.itemId); return item && item.brandId === brandFilter; });
-        }
-        if (search) {
-            stock = stock.filter(s => {
-                const item = getItemById(s.itemId);
-                if (!item) return false;
-                return (item.itemName || '').toLowerCase().includes(search);
-            });
-        }
+        if (brandFilter) stock = stock.filter(s => { const item = getItemById(s.itemId); return item && item.brandId === brandFilter; });
+        if (search) stock = stock.filter(s => { const item = getItemById(s.itemId); return item && (item.itemName || '').toLowerCase().includes(search); });
         if (statusFilter) {
             stock = stock.filter(s => {
                 const st = getStockStatus(s);
@@ -607,13 +708,19 @@
         }
         stock = stock.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
 
-        if (!stock.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="fas fa-boxes-stacked"></i><p>No stock entries found.</p></td></tr>'; return; }
+        if (!stock.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="fas fa-boxes-stacked"></i><p>No stock entries found.</p></td></tr>';
+            mob.innerHTML = '<div class="empty-state"><i class="fas fa-boxes-stacked"></i><p>No stock entries found.</p></div>';
+            return;
+        }
+
+        // Desktop table
         tbody.innerHTML = stock.map(s => {
             const item = getItemById(s.itemId); if (!item) return '';
             const brand = getBrandById(item.brandId);
             const storage = getStorageById(s.storageId);
             const status = getStockStatus(s);
-            const value = (Number(item.price) || 0) * (Number(s.quantity) || 0);
+            const value = getSellingPrice(item) * (Number(s.quantity) || 0);
             return `<tr>
                 <td><strong>${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${item.size} ${item.unit}</small></td>
                 <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
@@ -630,6 +737,44 @@
                 </td>
             </tr>`;
         }).join('');
+
+        // Mobile cards
+        mob.innerHTML = stock.map(s => {
+            const item = getItemById(s.itemId); if (!item) return '';
+            const brand = getBrandById(item.brandId);
+            const storage = getStorageById(s.storageId);
+            const status = getStockStatus(s);
+            const value = getSellingPrice(item) * (Number(s.quantity) || 0);
+            const min = getMinAlert(item);
+            return `<div class="mobile-card">
+                <div class="mobile-card-header">
+                    <div style="min-width:0;flex:1;">
+                        <div class="mobile-card-title">${escapeHtml(item.itemName)}</div>
+                        <div class="mobile-card-sub">${item.size} ${escapeHtml(item.unit)} ${brand ? '· ' + escapeHtml(brand.name) : ''}</div>
+                    </div>
+                    <span class="badge-soft ${status.cls}">${status.label}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="label"><i class="fas fa-warehouse me-1"></i>Storage</span>
+                    <span>${storage ? escapeHtml(storage.name) : '—'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="label">Quantity</span>
+                    <span><strong>${Number(s.quantity) || 0}</strong> <small class="text-muted">(Alert ≤ ${min})</small></span>
+                </div>
+                ${s.expiryDate ? `<div class="mobile-card-row"><span class="label">Expiry</span><span>${formatDate(s.expiryDate)}</span></div>` : ''}
+                <div class="mobile-card-row">
+                    <span class="label">Value</span>
+                    <span><strong>${formatCurrency(value)}</strong></span>
+                </div>
+                <div class="mobile-card-actions">
+                    <button class="btn btn-outline-success" onclick="quickAdjust('${s.id}', 1)"><i class="fas fa-plus"></i></button>
+                    <button class="btn btn-outline-warning" onclick="quickAdjust('${s.id}', -1)"><i class="fas fa-minus"></i></button>
+                    <button class="btn btn-outline-primary" onclick="openStockModal('edit','${s.id}')"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-outline-danger" onclick="deleteStock('${s.id}')"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>`;
+        }).join('');
     }
     window.quickAdjust = function (id, delta) {
         const stock = getStock();
@@ -645,7 +790,6 @@
         document.getElementById('stockEditId').value = '';
         document.getElementById('stockModalTitle').textContent = 'Add Stock';
         document.getElementById('stockQuantity').value = '1';
-        document.getElementById('stockMinStock').value = '1';
         document.getElementById('stockPurchaseDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('stockExpiry').value = '';
         document.getElementById('stockNotes').value = '';
@@ -663,7 +807,6 @@
             document.getElementById('stockItem').value = s.itemId;
             document.getElementById('stockStorage').value = s.storageId;
             document.getElementById('stockQuantity').value = s.quantity;
-            document.getElementById('stockMinStock').value = s.minStock || 1;
             document.getElementById('stockPurchaseDate').value = s.purchaseDate || '';
             document.getElementById('stockExpiry').value = s.expiryDate || '';
             document.getElementById('stockNotes').value = s.notes || '';
@@ -682,10 +825,7 @@
         const stock = getStock();
         const data = {
             id: editId || uid('stk'),
-            itemId,
-            storageId,
-            quantity: qty,
-            minStock: parseFloat(document.getElementById('stockMinStock').value) || 1,
+            itemId, storageId, quantity: qty,
             purchaseDate: document.getElementById('stockPurchaseDate').value || null,
             expiryDate: document.getElementById('stockExpiry').value || null,
             notes: document.getElementById('stockNotes').value.trim(),
@@ -721,21 +861,26 @@
         }
         const totalEst = active.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
         if (active.length) {
-            html = `<div class="mb-3 d-flex justify-content-between"><span class="badge-soft green">${active.length} item(s) pending</span><strong>Est. Total: ${formatCurrency(totalEst)}</strong></div>` + html;
+            html = `<div class="mb-3 d-flex justify-content-between flex-wrap gap-2">
+                <span class="badge-soft green">${active.length} item(s) pending</span>
+                <strong>Est. Total: ${formatCurrency(totalEst)}</strong>
+            </div>` + html;
         }
         container.innerHTML = html;
     }
     function shoppingItemHTML(s) {
         return `<div class="shopping-item ${s.done ? 'done' : ''}">
             <input type="checkbox" class="form-check-input" ${s.done ? 'checked' : ''} onchange="toggleShoppingDone('${s.id}')">
-            <div style="flex:1;">
+            <div style="flex:1;min-width:0;">
                 <strong>${escapeHtml(s.name)}</strong>
                 ${s.qty ? `<span class="text-muted"> — ${escapeHtml(s.qty)}</span>` : ''}
                 ${s.notes ? `<br><small class="text-muted">${escapeHtml(s.notes)}</small>` : ''}
             </div>
             ${s.price ? `<span class="badge-soft blue">${formatCurrency(s.price)}</span>` : ''}
-            <button class="btn btn-sm btn-outline-primary" onclick="openShoppingModal('edit','${s.id}')"><i class="fas fa-edit"></i></button>
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteShoppingItem('${s.id}')"><i class="fas fa-trash"></i></button>
+            <div class="d-flex gap-1">
+                <button class="btn btn-sm btn-outline-primary" onclick="openShoppingModal('edit','${s.id}')"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteShoppingItem('${s.id}')"><i class="fas fa-trash"></i></button>
+            </div>
         </div>`;
     }
     window.openShoppingModal = function (mode, id) {
@@ -762,8 +907,7 @@
         const editId = document.getElementById('shoppingEditId').value;
         const list = getShopping();
         const data = {
-            id: editId || uid('shp'),
-            name,
+            id: editId || uid('shp'), name,
             qty: document.getElementById('shoppingQty').value.trim(),
             price: parseFloat(document.getElementById('shoppingPrice').value) || 0,
             notes: document.getElementById('shoppingNotes').value.trim(),
@@ -789,7 +933,11 @@
         refreshShopping(); updateBadges();
     };
     window.autoGenerateShoppingList = function () {
-        const lowStock = getStock().filter(s => { const q = Number(s.quantity) || 0; const min = Number(s.minStock) || 1; return q <= min; });
+        const lowStock = getStock().filter(s => {
+            const item = getItemById(s.itemId);
+            const min = getMinAlert(item);
+            return (Number(s.quantity) || 0) <= min;
+        });
         if (!lowStock.length) { showToast('No low-stock items to add', 'info'); return; }
         const list = getShopping();
         let added = 0;
@@ -798,12 +946,13 @@
             const brand = getBrandById(item.brandId);
             const existing = list.find(x => !x.done && x.name.toLowerCase().includes(item.itemName.toLowerCase()));
             if (existing) return;
-            const shortfall = Math.max(1, (Number(s.minStock) || 1) - (Number(s.quantity) || 0) + 1);
+            const min = getMinAlert(item);
+            const shortfall = Math.max(1, min - (Number(s.quantity) || 0) + 1);
             list.push({
                 id: uid('shp'),
                 name: `${brand ? brand.name + ' ' : ''}${item.itemName}`,
                 qty: `${shortfall} x ${item.size}${item.unit}`,
-                price: (Number(item.price) || 0) * shortfall,
+                price: getSellingPrice(item) * shortfall,
                 notes: 'Auto-added from low stock',
                 done: false,
                 createdAt: new Date().toISOString()
@@ -825,8 +974,7 @@
             text += '\n';
         });
         const total = list.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
-        text += `\n💰 Est. Total: ₹${total}`;
-        text += `\n\n— GharSeva`;
+        text += `\n💰 Est. Total: ₹${total}\n\n— GharSeva`;
         if (navigator.clipboard) {
             navigator.clipboard.writeText(text).then(() => showToast('Shopping list copied!', 'success'));
         } else {
@@ -988,8 +1136,8 @@
             const container = document.getElementById('driveFileList');
             if (data.files && data.files.length) {
                 container.innerHTML = '<strong>📂 Backups:</strong>' + data.files.map(f =>
-                    `<div class="border rounded p-2 mt-1 d-flex justify-content-between align-items-center">
-                        <span>📄 ${escapeHtml(f.name)}</span>
+                    `<div class="border rounded p-2 mt-1 d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                        <span style="min-width:0;flex:1;">📄 ${escapeHtml(f.name)}</span>
                         <button class="btn btn-sm btn-primary-custom" onclick="restoreFromDrive('${f.id}')">Restore</button>
                     </div>`).join('');
             } else container.innerHTML = '<small class="text-muted">No backups found.</small>';
@@ -1048,39 +1196,34 @@
     window.loadSampleData = function () {
         if (!confirm('Load sample data? This will replace existing data.')) return;
         const now = new Date().toISOString();
-        // Storages
         const stg1 = { id: uid('stg'), name: 'Refrigerator', type: 'refrigerator', description: 'Kitchen — main fridge', createdAt: now };
         const stg2 = { id: uid('stg'), name: 'Storage Box', type: 'box', description: 'Dry goods box', createdAt: now };
         const stg3 = { id: uid('stg'), name: 'Rack A Floor 1', type: 'rack', description: 'Kitchen rack, ground floor', createdAt: now };
-        // Categories
         const cat1 = { id: uid('cat'), name: 'Kathod', description: 'Pulses & Lentils', createdAt: now };
         const cat2 = { id: uid('cat'), name: 'Dery', description: 'Dry fruits & nuts', createdAt: now };
         const cat3 = { id: uid('cat'), name: 'Masala', description: 'Spices & condiments', createdAt: now };
         const cat4 = { id: uid('cat'), name: 'Dairy', description: 'Milk products', createdAt: now };
-        // Brands
         const brd1 = { id: uid('brd'), name: 'Tata', description: 'Preferred for staples', createdAt: now };
         const brd2 = { id: uid('brd'), name: 'MDH', description: 'Masala brand', createdAt: now };
         const brd3 = { id: uid('brd'), name: 'Amul', description: 'Dairy regular', createdAt: now };
         const brd4 = { id: uid('brd'), name: 'Happilo', description: 'Dry fruits', createdAt: now };
         const brd5 = { id: uid('brd'), name: 'Fortune', description: 'Oil & atta', createdAt: now };
-        // Items
-        const itm1 = { id: uid('itm'), brandId: brd1.id, itemName: 'Toor Dal', categoryId: cat1.id, size: 1, unit: 'kg', price: 180, notes: '', createdAt: now, updatedAt: now };
-        const itm2 = { id: uid('itm'), brandId: brd2.id, itemName: 'Turmeric Powder', categoryId: cat3.id, size: 100, unit: 'gm', price: 45, notes: '', createdAt: now, updatedAt: now };
-        const itm3 = { id: uid('itm'), brandId: brd3.id, itemName: 'Milk', categoryId: cat4.id, size: 1, unit: 'l', price: 60, notes: '', createdAt: now, updatedAt: now };
-        const itm4 = { id: uid('itm'), brandId: brd4.id, itemName: 'Almonds', categoryId: cat2.id, size: 250, unit: 'gm', price: 350, notes: '', createdAt: now, updatedAt: now };
-        const itm5 = { id: uid('itm'), brandId: brd5.id, itemName: 'Sunflower Oil', categoryId: cat3.id, size: 1, unit: 'l', price: 140, notes: '', createdAt: now, updatedAt: now };
-        const itm6 = { id: uid('itm'), brandId: brd1.id, itemName: 'Salt', categoryId: cat3.id, size: 1, unit: 'kg', price: 25, notes: '', createdAt: now, updatedAt: now };
-        // Stock
+        const itm1 = { id: uid('itm'), brandId: brd1.id, itemName: 'Toor Dal', categoryId: cat1.id, size: 1, unit: 'kg', mrp: 220, price: 180, minAlert: 2, notes: '', createdAt: now, updatedAt: now };
+        const itm2 = { id: uid('itm'), brandId: brd2.id, itemName: 'Turmeric Powder', categoryId: cat3.id, size: 100, unit: 'gm', mrp: 50, price: 45, minAlert: 1, notes: '', createdAt: now, updatedAt: now };
+        const itm3 = { id: uid('itm'), brandId: brd3.id, itemName: 'Milk', categoryId: cat4.id, size: 1, unit: 'l', mrp: 66, price: 60, minAlert: 3, notes: '', createdAt: now, updatedAt: now };
+        const itm4 = { id: uid('itm'), brandId: brd4.id, itemName: 'Almonds', categoryId: cat2.id, size: 250, unit: 'gm', mrp: 400, price: 350, minAlert: 1, notes: '', createdAt: now, updatedAt: now };
+        const itm5 = { id: uid('itm'), brandId: brd5.id, itemName: 'Sunflower Oil', categoryId: cat3.id, size: 1, unit: 'l', mrp: 160, price: 140, minAlert: 1, notes: '', createdAt: now, updatedAt: now };
+        const itm6 = { id: uid('itm'), brandId: brd1.id, itemName: 'Salt', categoryId: cat3.id, size: 1, unit: 'kg', mrp: 28, price: 25, minAlert: 1, notes: '', createdAt: now, updatedAt: now };
         const exp1 = new Date(); exp1.setDate(exp1.getDate() + 5);
         const exp2 = new Date(); exp2.setDate(exp2.getDate() + 20);
         const exp3 = new Date(); exp3.setDate(exp3.getDate() + 180);
         const stock = [
-            { id: uid('stk'), itemId: itm1.id, storageId: stg2.id, quantity: 3, minStock: 2, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
-            { id: uid('stk'), itemId: itm2.id, storageId: stg3.id, quantity: 1, minStock: 1, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
-            { id: uid('stk'), itemId: itm3.id, storageId: stg1.id, quantity: 2, minStock: 3, expiryDate: exp1.toISOString().split('T')[0], createdAt: now, updatedAt: now },
-            { id: uid('stk'), itemId: itm4.id, storageId: stg2.id, quantity: 0, minStock: 1, expiryDate: exp2.toISOString().split('T')[0], createdAt: now, updatedAt: now },
-            { id: uid('stk'), itemId: itm5.id, storageId: stg3.id, quantity: 2, minStock: 1, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
-            { id: uid('stk'), itemId: itm6.id, storageId: stg2.id, quantity: 1, minStock: 1, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now }
+            { id: uid('stk'), itemId: itm1.id, storageId: stg2.id, quantity: 3, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm2.id, storageId: stg3.id, quantity: 1, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm3.id, storageId: stg1.id, quantity: 2, expiryDate: exp1.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm4.id, storageId: stg2.id, quantity: 0, expiryDate: exp2.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm5.id, storageId: stg3.id, quantity: 2, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm6.id, storageId: stg2.id, quantity: 1, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now }
         ];
         saveStorages([stg1, stg2, stg3]);
         saveCategories([cat1, cat2, cat3, cat4]);
@@ -1093,7 +1236,7 @@
         navigateTo('dashboard');
     };
 
-    // ─── Search listeners ────────────────────────────
+    // ─── Listeners ───────────────────────────────────
     function attachSearchListeners() {
         ['stockSearch', 'stockBrandFilter', 'stockStorageFilter', 'stockStatusFilter'].forEach(id => {
             const el = document.getElementById(id);
@@ -1107,11 +1250,35 @@
 
     // ─── Init ────────────────────────────────────────
     function init() {
-        document.getElementById('currentDateDisplay').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        document.getElementById('currentDateDisplay').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
         document.querySelectorAll('.sidebar-nav .nav-link').forEach(l => l.addEventListener('click', function () {
             const page = this.getAttribute('data-page');
             if (page) navigateTo(page);
         }));
+
+        // Mobile menu handlers
+        const menuBtn = document.getElementById('mobileMenuBtn');
+        const closeBtn = document.getElementById('sidebarCloseBtn');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (menuBtn) menuBtn.addEventListener('click', openSidebar);
+        if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+        if (overlay) overlay.addEventListener('click', closeSidebar);
+
+        // Close sidebar on ESC
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
+
+        // Handle resize
+        let rt;
+        window.addEventListener('resize', () => {
+            clearTimeout(rt);
+            rt = setTimeout(() => {
+                if (!isMobile()) closeSidebar();
+                // Update FAB visibility
+                const fab = document.getElementById('mobileFab');
+                if (fab) fab.style.display = (isMobile() && ['stock', 'items', 'brands', 'categories', 'storages'].includes(currentPage)) ? 'flex' : 'none';
+            }, 200);
+        });
+
         attachSearchListeners();
         refreshDropdowns();
         navigateTo('dashboard');
