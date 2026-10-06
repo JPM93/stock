@@ -37,7 +37,7 @@ body {
     min-height: 100vh;
 }
 
-/* ═══ Mobile top bar ═══ */
+/* ═══ Mobile topbar ═══ */
 .mobile-topbar {
     display: none;
     position: fixed;
@@ -216,14 +216,13 @@ body {
     opacity: 1;
 }
 
-/* ═══ Main content ═══ */
+/* ═══ Main ═══ */
 .main-content {
     flex: 1;
     margin-left: var(--sidebar-width);
     padding: 1.5rem 2rem;
     transition: var(--transition);
     min-height: 100vh;
-    position: relative;
     width: calc(100% - var(--sidebar-width));
 }
 
@@ -472,6 +471,10 @@ body {
     background: linear-gradient(135deg, #f59e0b, #fbbf24);
 }
 
+.master-icon.seller {
+    background: linear-gradient(135deg, #ec4899, #f472b6);
+}
+
 /* ═══ Badges ═══ */
 .badge-soft {
     padding: 3px 10px;
@@ -510,6 +513,11 @@ body {
 .badge-soft.purple {
     background: #e9d5ff;
     color: #6b21a8;
+}
+
+.badge-soft.pink {
+    background: #fce7f3;
+    color: #9d174d;
 }
 
 /* ═══ Alerts ═══ */
@@ -578,50 +586,93 @@ body {
     transition: width 0.4s ease;
 }
 
-/* ═══ Google drive ═══ */
-.google-drive-btn {
-    background: #fff;
-    border: 2px solid #e2e8f0;
-    padding: 0.55rem 1rem;
-    border-radius: 10px;
-    font-weight: 600;
-    transition: var(--transition);
-    display: inline-flex;
+/* ═══ Seller pricing row (inside item modal) ═══ */
+.seller-price-row {
+    display: grid;
+    grid-template-columns: 1fr 100px 90px 40px;
+    gap: 6px;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
-    cursor: pointer;
-    font-size: 0.88rem;
-    min-height: 42px;
-}
-
-.google-drive-btn:hover {
-    border-color: #4285f4;
+    margin-bottom: 8px;
+    padding: 8px;
     background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    transition: var(--transition);
 }
 
-.google-drive-btn:active {
-    transform: scale(0.97);
+.seller-price-row:hover {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
 }
 
-#driveStatus {
-    font-size: 0.85rem;
-    color: #64748b;
-    min-height: 20px;
+.seller-price-row .form-select,
+.seller-price-row .form-control {
+    font-size: 0.88rem;
+    min-height: 40px;
 }
 
-.drive-status-success {
-    color: #10b981;
+.seller-price-row .discount-badge {
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.8rem;
 }
 
-.drive-status-error {
+.seller-price-row .btn-remove {
+    background: transparent;
+    border: none;
     color: #ef4444;
-}
-
-/* ═══ Shopping items ═══ */
-.shopping-item {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.seller-price-row .btn-remove:hover {
+    background: #fee2e2;
+}
+
+/* ═══ Seller price chips (read-only display) ═══ */
+.seller-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    background: #fce7f3;
+    color: #9d174d;
+    font-weight: 600;
+    margin: 2px 3px 2px 0;
+    white-space: nowrap;
+}
+
+.seller-chip.best {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+.seller-chip .seller-name {
+    font-weight: 700;
+}
+
+.seller-chip .seller-price {
+    opacity: 0.9;
+}
+
+.seller-chip .seller-disc {
+    opacity: 0.85;
+    font-size: 0.68rem;
+}
+
+/* ═══ Shopping list ═══ */
+.shopping-item {
+    display: flex;
+    align-items: flex-start;
     gap: 10px;
     padding: 10px 12px;
     border-bottom: 1px solid #e2e8f0;
@@ -648,6 +699,7 @@ body {
     margin: 0;
     flex-shrink: 0;
     cursor: pointer;
+    margin-top: 3px;
 }
 
 .form-check-input:checked {
@@ -655,7 +707,7 @@ body {
     border-color: #10b981;
 }
 
-/* ═══ Mobile cards list (Stock / Items) ═══ */
+/* ═══ Mobile cards ═══ */
 .mobile-card {
     background: #fff;
     border-radius: 14px;
@@ -745,7 +797,7 @@ body {
     transform: scale(0.9);
 }
 
-/* ═══ Table tweaks ═══ */
+/* ═══ Tables ═══ */
 .table> :not(caption)>*>* {
     padding: 0.65rem 0.5rem;
     vertical-align: middle;
@@ -759,7 +811,7 @@ body {
     letter-spacing: 0.3px;
 }
 
-/* ═══════════ TABLET & MOBILE ═══════════ */
+/* ═══════════ RESPONSIVE ═══════════ */
 @media (max-width: 991.98px) {
     .main-content {
         padding: 1rem 1.25rem;
@@ -771,8 +823,6 @@ body {
 }
 
 @media (max-width: 767.98px) {
-
-    /* Sidebar becomes drawer */
     .sidebar {
         transform: translateX(-100%);
         width: 280px;
@@ -789,12 +839,10 @@ body {
         justify-content: center;
     }
 
-    /* Mobile top bar visible */
     .mobile-topbar {
         display: flex;
     }
 
-    /* Main content full width */
     .main-content {
         margin-left: 0;
         width: 100%;
@@ -802,7 +850,6 @@ body {
         padding-top: calc(56px + 1rem);
     }
 
-    /* Top bar adjustments */
     .top-bar {
         flex-direction: column;
         align-items: flex-start;
@@ -818,7 +865,6 @@ body {
         font-size: 0.78rem !important;
     }
 
-    /* Cards */
     .card-custom {
         padding: 1rem;
         border-radius: 14px;
@@ -837,7 +883,6 @@ body {
         font-size: 0.7rem;
     }
 
-    /* Page header */
     .page-header {
         flex-direction: column;
         align-items: stretch;
@@ -859,7 +904,6 @@ body {
         min-width: 0;
     }
 
-    /* Filters */
     .filters-bar {
         grid-template-columns: 1fr 1fr;
         gap: 0.4rem;
@@ -869,7 +913,6 @@ body {
         grid-column: 1 / -1;
     }
 
-    /* Modals full-width-ish */
     .modal-dialog {
         margin: 0.5rem;
     }
@@ -895,25 +938,48 @@ body {
         flex: 1;
     }
 
-    /* Forms larger tap targets */
     .form-control,
     .form-select {
         min-height: 44px;
         font-size: 16px;
-        /* prevent iOS zoom */
     }
 
-    /* Alerts */
     .alert-item {
         padding: 10px;
         font-size: 0.83rem;
     }
 
-    /* Buttons */
     .btn-sm {
         min-height: 38px;
         padding: 0.4rem 0.7rem;
         font-size: 0.85rem;
+    }
+
+    /* Seller price row on mobile: stack */
+    .seller-price-row {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "seller seller"
+            "price discount"
+            "remove remove";
+        gap: 6px;
+    }
+
+    .seller-price-row .sp-seller {
+        grid-area: seller;
+    }
+
+    .seller-price-row .sp-price {
+        grid-area: price;
+    }
+
+    .seller-price-row .sp-discount {
+        grid-area: discount;
+    }
+
+    .seller-price-row .sp-remove {
+        grid-area: remove;
+        justify-self: end;
     }
 }
 
@@ -940,14 +1006,12 @@ body {
     }
 }
 
-/* Smooth scrolling on iOS */
 .sidebar,
 .alert-list,
 .main-content {
     -webkit-overflow-scrolling: touch;
 }
 
-/* Reduce motion */
 @media (prefers-reduced-motion: reduce) {
 
     *,

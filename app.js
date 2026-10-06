@@ -26,12 +26,14 @@
     function getStorages() { return load('storages', []); }
     function getCategories() { return load('categories', []); }
     function getBrands() { return load('brands', []); }
+    function getSellers() { return load('sellers', []); }
     function getItems() { return load('items', []); }
     function getStock() { return load('stock', []); }
     function getShopping() { return load('shopping', []); }
     function saveStorages(v) { save('storages', v); }
     function saveCategories(v) { save('categories', v); }
     function saveBrands(v) { save('brands', v); }
+    function saveSellers(v) { save('sellers', v); }
     function saveItems(v) { save('items', v); }
     function saveStock(v) { save('stock', v); }
     function saveShopping(v) { save('shopping', v); }
@@ -39,14 +41,15 @@
     function getAllData() {
         return {
             storages: getStorages(), categories: getCategories(), brands: getBrands(),
-            items: getItems(), stock: getStock(), shopping: getShopping(),
-            exportDate: new Date().toISOString(), version: '1.2'
+            sellers: getSellers(), items: getItems(), stock: getStock(), shopping: getShopping(),
+            exportDate: new Date().toISOString(), version: '1.3'
         };
     }
     function restoreData(d) {
         if (d.storages) saveStorages(d.storages);
         if (d.categories) saveCategories(d.categories);
         if (d.brands) saveBrands(d.brands);
+        if (d.sellers) saveSellers(d.sellers);
         if (d.items) saveItems(d.items);
         if (d.stock) saveStock(d.stock);
         if (d.shopping) saveShopping(d.shopping);
@@ -54,35 +57,49 @@
     function getStorageById(id) { return getStorages().find(s => s.id === id); }
     function getCategoryById(id) { return getCategories().find(c => c.id === id); }
     function getBrandById(id) { return getBrands().find(b => b.id === id); }
+    function getSellerById(id) { return getSellers().find(s => s.id === id); }
     function getItemById(id) { return getItems().find(i => i.id === id); }
 
-    // Effective min alert: item level
-    function getMinAlert(item) {
-        if (!item) return 1;
-        return Number(item.minAlert) || 0;
-    }
-    // Selling price (fallback to MRP)
+    function getMinAlert(item) { return item ? (Number(item.minAlert) || 0) : 1; }
     function getSellingPrice(item) {
         if (!item) return 0;
+        // If item has sellers, use cheapest seller price (best price)
+        const best = getBestSellerPrice(item);
+        if (best) return best.price;
         if (item.price !== undefined && item.price !== null && item.price !== '') return Number(item.price) || 0;
         return Number(item.mrp) || 0;
+    }
+    function getBestSellerPrice(item) {
+        if (!item || !item.sellers || !item.sellers.length) return null;
+        let best = null;
+        item.sellers.forEach(s => {
+            const p = Number(s.price) || 0;
+            if (p > 0 && (!best || p < best.price)) best = { sellerId: s.sellerId, price: p };
+        });
+        return best;
+    }
+    function getDiscountPct(mrp, price) {
+        const m = Number(mrp) || 0;
+        const p = Number(price) || 0;
+        if (m > 0 && p > 0 && m > p) return Math.round(((m - p) / m) * 100);
+        return 0;
+    }
+    function getSellerPrice(item, sellerId) {
+        if (!item || !item.sellers) return null;
+        return item.sellers.find(s => s.sellerId === sellerId);
     }
 
     // ─── Mobile Drawer ────────────────────────────────
     function openSidebar() {
-        const sb = document.getElementById('sidebar');
-        const ov = document.getElementById('sidebarOverlay');
+        const sb = document.getElementById('sidebar'), ov = document.getElementById('sidebarOverlay');
         if (!sb) return;
-        sb.classList.add('open');
-        if (ov) ov.classList.add('show');
+        sb.classList.add('open'); if (ov) ov.classList.add('show');
         document.body.style.overflow = 'hidden';
     }
     function closeSidebar() {
-        const sb = document.getElementById('sidebar');
-        const ov = document.getElementById('sidebarOverlay');
+        const sb = document.getElementById('sidebar'), ov = document.getElementById('sidebarOverlay');
         if (!sb) return;
-        sb.classList.remove('open');
-        if (ov) ov.classList.remove('show');
+        sb.classList.remove('open'); if (ov) ov.classList.remove('show');
         document.body.style.overflow = '';
     }
 
@@ -95,32 +112,28 @@
         const nav = document.querySelector(`[data-page="${page}"]`); if (nav) nav.classList.add('active');
         const titles = {
             dashboard: '📊 Dashboard', stock: '📦 Available Stock', items: '🏷️ Item Master',
-            brands: '©️ Brand Master', categories: '📚 Category Master', storages: '🏠 Storage Master',
-            shopping: '🛒 Shopping List', settings: '⚙️ Settings & Sync'
+            brands: '©️ Brand Master', sellers: '🏪 Seller Master', categories: '📚 Category Master',
+            storages: '🏠 Storage Master', shopping: '🛒 Shopping List', settings: '⚙️ Settings & Sync'
         };
         document.getElementById('pageTitle').textContent = titles[page] || page;
 
-        // FAB visible on specific pages (mobile)
         const fab = document.getElementById('mobileFab');
         if (fab) {
-            if (isMobile() && ['stock', 'items', 'brands', 'categories', 'storages'].includes(page)) {
+            if (isMobile() && ['stock', 'items', 'brands', 'sellers', 'categories', 'storages'].includes(page)) {
                 fab.style.display = 'flex';
                 fab.onclick = function () {
                     if (page === 'stock') openStockModal();
                     else if (page === 'items') openItemModal();
                     else if (page === 'brands') openBrandModal();
+                    else if (page === 'sellers') openSellerModal();
                     else if (page === 'categories') openCategoryModal();
                     else if (page === 'storages') openStorageModal();
                 };
-            } else {
-                fab.style.display = 'none';
-            }
+            } else fab.style.display = 'none';
         }
 
         refreshCurrentPage();
         if (page === 'settings') loadDriveConfigInputs();
-
-        // Auto-close drawer on mobile
         if (isMobile()) closeSidebar();
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -132,6 +145,7 @@
             case 'stock': refreshStock(); break;
             case 'items': refreshItems(); break;
             case 'brands': refreshBrands(); break;
+            case 'sellers': refreshSellers(); break;
             case 'categories': refreshCategories(); break;
             case 'storages': refreshStorages(); break;
             case 'shopping': refreshShopping(); break;
@@ -155,7 +169,6 @@
         const items = getItems(), stock = getStock();
         document.getElementById('statTotalItems').textContent = items.length;
         document.getElementById('statTotalStock').textContent = stock.length;
-
         const lowStock = stock.filter(s => {
             const item = getItemById(s.itemId); const min = getMinAlert(item);
             const q = Number(s.quantity) || 0;
@@ -163,12 +176,10 @@
         });
         const outOfStock = stock.filter(s => (Number(s.quantity) || 0) <= 0);
         document.getElementById('statLowStock').textContent = lowStock.length + outOfStock.length;
-
         let totalValue = 0;
         stock.forEach(s => { const item = getItemById(s.itemId); if (item) totalValue += getSellingPrice(item) * (Number(s.quantity) || 0); });
         document.getElementById('statInventoryValue').textContent = formatCurrency(totalValue);
 
-        // Low stock alerts
         const lowStockList = document.getElementById('lowStockList');
         const alerts = [...outOfStock, ...lowStock].slice(0, 8);
         if (!alerts.length) { lowStockList.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle text-success"></i><p>All items are well-stocked! 🎉</p></div>'; }
@@ -179,16 +190,12 @@
                 const isOut = (Number(s.quantity) || 0) <= 0;
                 const min = getMinAlert(item);
                 return `<div class="alert-item ${isOut ? 'danger' : ''}">
-                    <div style="min-width:0;flex:1;">
-                        <strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br>
-                        <small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || 'Unknown')} · Alert ≤ ${min}</small>
-                    </div>
+                    <div style="min-width:0;flex:1;"><strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || 'Unknown')} · Alert ≤ ${min}</small></div>
                     <span class="badge-soft ${isOut ? 'red' : 'orange'}">${isOut ? 'Out' : (Number(s.quantity)) + ' left'}</span>
                 </div>`;
             }).join('');
         }
 
-        // Expiring soon
         const expiringList = document.getElementById('expiringList');
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
@@ -197,20 +204,13 @@
             const d = new Date(s.expiryDate); d.setHours(0, 0, 0, 0);
             return d >= today && d <= in30;
         }).sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate)).slice(0, 8);
-
         if (!expiring.length) { expiringList.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle text-success"></i><p>Nothing expiring in 30 days</p></div>'; }
         else {
             expiringList.innerHTML = expiring.map(s => {
                 const item = getItemById(s.itemId); if (!item) return '';
                 const brand = getBrandById(item.brandId);
                 const d = new Date(s.expiryDate); const days = Math.ceil((d - today) / 86400000);
-                return `<div class="alert-item">
-                    <div style="min-width:0;flex:1;">
-                        <strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br>
-                        <small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || '')}</small>
-                    </div>
-                    <span class="badge-soft orange">${days}d</span>
-                </div>`;
+                return `<div class="alert-item"><div style="min-width:0;flex:1;"><strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || '')}</small></div><span class="badge-soft orange">${days}d</span></div>`;
             }).join('');
         }
 
@@ -222,12 +222,7 @@
         else {
             tbody.innerHTML = recent.map(i => {
                 const brand = getBrandById(i.brandId);
-                return `<tr>
-                    <td>${escapeHtml(i.itemName)}</td>
-                    <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
-                    <td>${i.size} ${i.unit}</td>
-                    <td>${formatCurrency(getSellingPrice(i))}</td>
-                </tr>`;
+                return `<tr><td>${escapeHtml(i.itemName)}</td><td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td><td>${i.size} ${i.unit}</td><td>${formatCurrency(getSellingPrice(i))}</td></tr>`;
             }).join('');
         }
     }
@@ -238,7 +233,6 @@
         const brands = getBrands();
         const items = getItems();
         if (!brands.length) { container.innerHTML = '<div class="empty-state"><i class="fas fa-copyright"></i><p>No brands yet.</p></div>'; return; }
-
         const usage = brands.map(b => {
             const brandItems = items.filter(i => i.brandId === b.id);
             const itemCount = brandItems.length;
@@ -251,18 +245,13 @@
             });
             return { id: b.id, name: b.name, itemCount, stockCount, value };
         }).sort((a, b) => b.itemCount - a.itemCount).slice(0, 6);
-
         const maxItems = Math.max(...usage.map(u => u.itemCount), 1);
-
         container.innerHTML = usage.map(u => {
             const pct = (u.itemCount / maxItems) * 100;
             return `<div class="brand-usage-row">
                 <div class="brand-usage-avatar">${escapeHtml(initials(u.name))}</div>
                 <div style="flex:1;min-width:0;">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <strong>${escapeHtml(u.name)}</strong>
-                        <small class="text-muted">${u.itemCount} item${u.itemCount !== 1 ? 's' : ''}</small>
-                    </div>
+                    <div class="d-flex justify-content-between align-items-center"><strong>${escapeHtml(u.name)}</strong><small class="text-muted">${u.itemCount} item${u.itemCount !== 1 ? 's' : ''}</small></div>
                     <div class="brand-usage-bar"><div style="width:${pct}%;"></div></div>
                     <small class="text-muted">Stock: ${u.stockCount.toFixed(0)} units · Value: ${formatCurrency(u.value)}</small>
                 </div>
@@ -270,7 +259,135 @@
         }).join('');
     }
 
-    // ─── Storage Master ──────────────────────────────
+    // ═══ SELLER MASTER ═══
+    function refreshSellers() {
+        const grid = document.getElementById('sellersGrid');
+        const sellers = getSellers();
+        if (!sellers.length) { grid.innerHTML = '<div class="col-12 empty-state"><i class="fas fa-store"></i><p>No sellers yet. Add Zepto, Blinkit, etc.</p></div>'; return; }
+
+        const items = getItems();
+        const data = sellers.map(s => {
+            let itemCount = 0, bestPriceWins = 0;
+            items.forEach(i => {
+                const sp = (i.sellers || []).find(x => x.sellerId === s.id);
+                if (sp) {
+                    itemCount++;
+                    const best = getBestSellerPrice(i);
+                    if (best && best.sellerId === s.id) bestPriceWins++;
+                }
+            });
+            return { seller: s, itemCount, bestPriceWins };
+        }).sort((a, b) => b.itemCount - a.itemCount);
+
+        grid.innerHTML = data.map(d => {
+            const s = d.seller;
+            return `<div class="col-12 col-sm-6 col-lg-4">
+                <div class="master-card">
+                    <div class="d-flex gap-2 mb-3">
+                        <div class="master-icon seller" style="font-weight:800;font-size:0.95rem;">${escapeHtml(initials(s.name))}</div>
+                        <div style="min-width:0;flex:1;">
+                            <h6 class="fw-bold mb-0">${escapeHtml(s.name)}</h6>
+                            <small class="text-muted">Seller / Platform</small>
+                        </div>
+                    </div>
+                    ${s.description ? `<p class="small text-muted mb-2">${escapeHtml(s.description)}</p>` : ''}
+                    <div class="d-flex gap-2 mb-3 flex-wrap">
+                        <span class="badge-soft pink"><i class="fas fa-tag me-1"></i>${d.itemCount} item${d.itemCount !== 1 ? 's' : ''}</span>
+                        ${d.bestPriceWins ? `<span class="badge-soft green"><i class="fas fa-trophy me-1"></i>${d.bestPriceWins} best</span>` : ''}
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                        <button class="btn btn-sm btn-outline-custom" onclick="viewSellerItems('${s.id}')"><i class="fas fa-list me-1"></i>Items</button>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="openSellerModal('edit','${s.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteSeller('${s.id}')"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+    window.openSellerModal = function (mode, id) {
+        document.getElementById('sellerEditId').value = '';
+        document.getElementById('sellerModalTitle').textContent = 'Add Seller';
+        document.getElementById('sellerName').value = '';
+        document.getElementById('sellerDescription').value = '';
+        if (mode === 'edit' && id) {
+            const s = getSellerById(id); if (!s) return;
+            document.getElementById('sellerEditId').value = s.id;
+            document.getElementById('sellerModalTitle').textContent = 'Edit Seller';
+            document.getElementById('sellerName').value = s.name;
+            document.getElementById('sellerDescription').value = s.description || '';
+        }
+        new bootstrap.Modal(document.getElementById('sellerModal')).show();
+    };
+    window.saveSeller = function () {
+        const name = document.getElementById('sellerName').value.trim();
+        if (!name) { showToast('Seller name required', 'warning'); return; }
+        const editId = document.getElementById('sellerEditId').value;
+        const sellers = getSellers();
+        if (sellers.find(s => s.name.toLowerCase() === name.toLowerCase() && s.id !== editId)) {
+            showToast('Seller already exists', 'warning'); return;
+        }
+        const data = {
+            id: editId || uid('slr'), name,
+            description: document.getElementById('sellerDescription').value.trim(),
+            createdAt: editId ? (getSellerById(editId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
+        };
+        if (editId) { const i = sellers.findIndex(x => x.id === editId); if (i >= 0) sellers[i] = data; }
+        else sellers.push(data);
+        saveSellers(sellers);
+        bootstrap.Modal.getInstance(document.getElementById('sellerModal')).hide();
+        showToast(editId ? 'Seller updated!' : 'Seller added!', 'success');
+        refreshSellers();
+    };
+    window.deleteSeller = function (id) {
+        // Check usage in items
+        let used = 0;
+        getItems().forEach(i => { if ((i.sellers || []).some(s => s.sellerId === id)) used++; });
+        if (used) { showToast(`Cannot delete — ${used} item(s) use this seller`, 'error'); return; }
+        if (!confirm('Delete this seller?')) return;
+        saveSellers(getSellers().filter(s => s.id !== id));
+        showToast('Seller deleted', 'success');
+        refreshSellers();
+    };
+    window.viewSellerItems = function (sellerId) {
+        const seller = getSellerById(sellerId); if (!seller) return;
+        const itemsWithSeller = getItems().filter(i => (i.sellers || []).some(s => s.sellerId === sellerId));
+        if (!itemsWithSeller.length) { showToast(`No items for ${seller.name} yet`, 'info'); return; }
+        navigateTo('items');
+    };
+
+    // Quick add seller (from inside item modal)
+    window.openQuickSellerModal = function (callback) {
+        document.getElementById('quickSellerName').value = '';
+        document.getElementById('quickSellerDescription').value = '';
+        window.__quickSellerCallback = callback;
+        new bootstrap.Modal(document.getElementById('quickSellerModal')).show();
+    };
+    window.saveQuickSeller = function () {
+        const name = document.getElementById('quickSellerName').value.trim();
+        if (!name) { showToast('Seller name required', 'warning'); return; }
+        const sellers = getSellers();
+        if (sellers.find(s => s.name.toLowerCase() === name.toLowerCase())) {
+            showToast('Seller already exists', 'warning'); return;
+        }
+        const data = {
+            id: uid('slr'), name,
+            description: document.getElementById('quickSellerDescription').value.trim(),
+            createdAt: new Date().toISOString()
+        };
+        sellers.push(data);
+        saveSellers(sellers);
+        bootstrap.Modal.getInstance(document.getElementById('quickSellerModal')).hide();
+        showToast('Seller added!', 'success');
+        refreshSellers();
+        if (window.__quickSellerCallback) {
+            window.__quickSellerCallback(data.id);
+            window.__quickSellerCallback = null;
+        }
+    };
+
+    // ═══ STORAGE MASTER ═══
     function refreshStorages() {
         const grid = document.getElementById('storagesGrid');
         const storages = getStorages();
@@ -282,10 +399,7 @@
                 <div class="master-card">
                     <div class="d-flex gap-2 mb-2">
                         <div class="master-icon"><i class="fas ${iconMap[s.type] || 'fa-cube'}"></i></div>
-                        <div style="min-width:0;">
-                            <h6 class="fw-bold mb-0">${escapeHtml(s.name)}</h6>
-                            <small class="text-muted">${escapeHtml(s.type || 'other')}</small>
-                        </div>
+                        <div style="min-width:0;"><h6 class="fw-bold mb-0">${escapeHtml(s.name)}</h6><small class="text-muted">${escapeHtml(s.type || 'other')}</small></div>
                     </div>
                     <p class="small text-muted mb-2">${escapeHtml(s.description || 'No description')}</p>
                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
@@ -342,7 +456,7 @@
         refreshStorages(); refreshDropdowns();
     };
 
-    // ─── Category Master ─────────────────────────────
+    // ═══ CATEGORY MASTER ═══
     function refreshCategories() {
         const grid = document.getElementById('categoriesGrid');
         const cats = getCategories();
@@ -354,10 +468,7 @@
                 <div class="master-card">
                     <div class="d-flex gap-2 mb-2">
                         <div class="master-icon category"><i class="fas fa-tag"></i></div>
-                        <div style="min-width:0;">
-                            <h6 class="fw-bold mb-0">${escapeHtml(c.name)}</h6>
-                            <small class="text-muted">Category</small>
-                        </div>
+                        <div style="min-width:0;"><h6 class="fw-bold mb-0">${escapeHtml(c.name)}</h6><small class="text-muted">Category</small></div>
                     </div>
                     <p class="small text-muted mb-2">${escapeHtml(c.description || 'No description')}</p>
                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
@@ -411,12 +522,11 @@
         refreshCategories(); refreshDropdowns();
     };
 
-    // ─── Brand Master ────────────────────────────────
+    // ═══ BRAND MASTER ═══
     function refreshBrands() {
         const grid = document.getElementById('brandsGrid');
         const brands = getBrands();
-        if (!brands.length) { grid.innerHTML = '<div class="col-12 empty-state"><i class="fas fa-copyright"></i><p>No brands yet. Add your first brand!</p></div>'; return; }
-
+        if (!brands.length) { grid.innerHTML = '<div class="col-12 empty-state"><i class="fas fa-copyright"></i><p>No brands yet.</p></div>'; return; }
         const items = getItems();
         const data = brands.map(b => {
             const brandItems = items.filter(i => i.brandId === b.id);
@@ -430,9 +540,7 @@
             });
             return { brand: b, itemCount, stockUnits, value };
         }).sort((a, b) => b.itemCount - a.itemCount);
-
         const maxItems = Math.max(...data.map(d => d.itemCount), 1);
-
         grid.innerHTML = data.map(d => {
             const b = d.brand;
             const pct = (d.itemCount / maxItems) * 100;
@@ -440,17 +548,11 @@
                 <div class="master-card">
                     <div class="d-flex gap-2 mb-3">
                         <div class="master-icon brand" style="font-weight:800;font-size:0.95rem;">${escapeHtml(initials(b.name))}</div>
-                        <div style="min-width:0;">
-                            <h6 class="fw-bold mb-0">${escapeHtml(b.name)}</h6>
-                            <small class="text-muted">Brand</small>
-                        </div>
+                        <div style="min-width:0;"><h6 class="fw-bold mb-0">${escapeHtml(b.name)}</h6><small class="text-muted">Brand</small></div>
                     </div>
                     ${b.description ? `<p class="small text-muted mb-2">${escapeHtml(b.description)}</p>` : ''}
                     <div class="mb-2">
-                        <div class="d-flex justify-content-between mb-1">
-                            <small class="text-muted">Items used</small>
-                            <small class="fw-bold">${d.itemCount}</small>
-                        </div>
+                        <div class="d-flex justify-content-between mb-1"><small class="text-muted">Items used</small><small class="fw-bold">${d.itemCount}</small></div>
                         <div class="brand-usage-bar"><div style="width:${pct}%;"></div></div>
                     </div>
                     <div class="d-flex gap-2 mb-3 flex-wrap">
@@ -521,7 +623,7 @@
         }, 100);
     };
 
-    // ─── Item Master ─────────────────────────────────
+    // ═══ ITEM MASTER ═══
     function refreshItems() {
         const tbody = document.getElementById('itemsBody');
         const mob = document.getElementById('itemsMobileList');
@@ -535,25 +637,28 @@
         items = items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         if (!items.length) {
-            tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="fas fa-tag"></i><p>No items found.</p></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><i class="fas fa-tag"></i><p>No items found.</p></td></tr>';
             mob.innerHTML = '<div class="empty-state"><i class="fas fa-tag"></i><p>No items found.</p></div>';
             return;
         }
 
-        // Desktop table
+        // Desktop
         tbody.innerHTML = items.map(i => {
             const cat = getCategoryById(i.categoryId);
             const brand = getBrandById(i.brandId);
             const mrp = Number(i.mrp) || 0;
-            const price = getSellingPrice(i);
-            const discount = mrp > price && mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0;
+            const basePrice = Number(i.price) || 0;
+            const best = getBestSellerPrice(i);
+            const bestSeller = best ? getSellerById(best.sellerId) : null;
+            const bestDiscount = best ? getDiscountPct(mrp, best.price) : 0;
             return `<tr>
                 <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td><strong>${escapeHtml(i.itemName)}</strong></td>
                 <td>${cat ? `<span class="badge-soft blue">${escapeHtml(cat.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td>${i.size} <span class="badge-soft gray">${escapeHtml(i.unit)}</span></td>
                 <td>${mrp ? formatCurrency(mrp) : '<span class="text-muted">—</span>'}</td>
-                <td><strong>${formatCurrency(price)}</strong>${discount ? `<br><small class="text-success">${discount}% off</small>` : ''}</td>
+                <td>${basePrice ? formatCurrency(basePrice) : '<span class="text-muted">—</span>'}</td>
+                <td>${bestSeller ? `<span class="seller-chip best"><span class="seller-name">${escapeHtml(bestSeller.name)}</span> <span class="seller-price">${formatCurrency(best.price)}</span>${bestDiscount ? ` <span class="seller-disc">${bestDiscount}%</span>` : ''}</span>` : '<span class="text-muted small">No sellers</span>'}</td>
                 <td><span class="badge-soft orange">≤ ${getMinAlert(i)}</span></td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="openItemModal('edit','${i.id}')"><i class="fas fa-edit"></i></button>
@@ -562,13 +667,24 @@
             </tr>`;
         }).join('');
 
-        // Mobile cards
+        // Mobile
         mob.innerHTML = items.map(i => {
             const cat = getCategoryById(i.categoryId);
             const brand = getBrandById(i.brandId);
             const mrp = Number(i.mrp) || 0;
-            const price = getSellingPrice(i);
-            const discount = mrp > price && mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0;
+            const basePrice = Number(i.price) || 0;
+            const sellerChips = (i.sellers || []).map(sp => {
+                const seller = getSellerById(sp.sellerId);
+                if (!seller) return '';
+                const disc = getDiscountPct(mrp, sp.price);
+                const best = getBestSellerPrice(i);
+                const isBest = best && best.sellerId === sp.sellerId;
+                return `<span class="seller-chip ${isBest ? 'best' : ''}">
+                    <span class="seller-name">${escapeHtml(seller.name)}</span>
+                    <span class="seller-price">${formatCurrency(sp.price)}</span>
+                    ${disc ? `<span class="seller-disc">${disc}%</span>` : ''}
+                </span>`;
+            }).join('');
             return `<div class="mobile-card">
                 <div class="mobile-card-header">
                     <div style="min-width:0;flex:1;">
@@ -577,19 +693,11 @@
                     </div>
                     ${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : ''}
                 </div>
-                <div class="mobile-card-row">
-                    <span class="label">MRP</span>
-                    <span>${mrp ? formatCurrency(mrp) : '—'}</span>
-                </div>
-                <div class="mobile-card-row">
-                    <span class="label">Selling Price</span>
-                    <span><strong>${formatCurrency(price)}</strong> ${discount ? `<span class="badge-soft green">${discount}% off</span>` : ''}</span>
-                </div>
-                <div class="mobile-card-row">
-                    <span class="label">Min Alert Level</span>
-                    <span class="badge-soft orange">≤ ${getMinAlert(i)}</span>
-                </div>
-                ${i.notes ? `<div class="mobile-card-row"><span class="label">Notes</span><span>${escapeHtml(i.notes)}</span></div>` : ''}
+                <div class="mobile-card-row"><span class="label">MRP</span><span>${mrp ? formatCurrency(mrp) : '—'}</span></div>
+                <div class="mobile-card-row"><span class="label">Base Price</span><span><strong>${basePrice ? formatCurrency(basePrice) : '—'}</strong></span></div>
+                <div class="mobile-card-row"><span class="label">Min Alert</span><span class="badge-soft orange">≤ ${getMinAlert(i)}</span></div>
+                ${sellerChips ? `<div style="margin-top:6px;"><small class="text-muted d-block mb-1">Sellers:</small>${sellerChips}</div>` : ''}
+                ${i.notes ? `<div class="mobile-card-row" style="margin-top:6px;"><span class="label">Notes</span><span>${escapeHtml(i.notes)}</span></div>` : ''}
                 <div class="mobile-card-actions">
                     <button class="btn btn-outline-primary" onclick="openItemModal('edit','${i.id}')"><i class="fas fa-edit me-1"></i>Edit</button>
                     <button class="btn btn-outline-danger" onclick="deleteItem('${i.id}')"><i class="fas fa-trash me-1"></i>Delete</button>
@@ -611,6 +719,8 @@
         document.getElementById('itemNotes').value = '';
         populateDropdown('itemBrand', getBrands().map(b => ({ id: b.id, label: b.name })), false);
         populateDropdown('itemCategory', getCategories().map(c => ({ id: c.id, label: c.name })), false);
+        document.getElementById('sellerPricingContainer').innerHTML = '';
+
         if (mode === 'edit' && id) {
             const i = getItemById(id); if (!i) return;
             document.getElementById('itemEditId').value = i.id;
@@ -624,9 +734,89 @@
             document.getElementById('itemPrice').value = i.price || '';
             document.getElementById('itemMinAlert').value = getMinAlert(i);
             document.getElementById('itemNotes').value = i.notes || '';
+            (i.sellers || []).forEach(sp => addSellerPriceRow(sp.sellerId, sp.price));
         }
         new bootstrap.Modal(document.getElementById('itemModal')).show();
     };
+
+    // Add seller price row (inside item modal)
+    window.addSellerPriceRow = function (sellerId, price) {
+        const container = document.getElementById('sellerPricingContainer');
+        if (!container) return;
+        const sellers = getSellers();
+        if (!sellers.length) {
+            // Auto-open quick add
+            window.openQuickSellerModal((newId) => {
+                addSellerPriceRow(newId, price);
+            });
+            return;
+        }
+        const rowId = 'spr_' + Date.now() + Math.random().toString(36).substr(2, 4);
+        const opts = sellers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+        const html = `
+            <div class="seller-price-row" id="${rowId}">
+                <select class="form-select sp-seller" onchange="recalcSellerRow('${rowId}')">
+                    <option value="">-- Select Seller --</option>
+                    ${opts}
+                    <option value="__add_new__">➕ Add New Seller...</option>
+                </select>
+                <input type="number" class="form-control sp-price" placeholder="Price" step="0.01" min="0" oninput="recalcSellerRow('${rowId}')">
+                <div class="sp-discount discount-badge text-muted">—</div>
+                <button type="button" class="btn-remove sp-remove" onclick="removeSellerPriceRow('${rowId}')" title="Remove">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', html);
+        const row = document.getElementById(rowId);
+        const sel = row.querySelector('.sp-seller');
+        const pIn = row.querySelector('.sp-price');
+        if (sellerId) sel.value = sellerId;
+        if (price !== undefined && price !== null && price !== '') pIn.value = price;
+
+        // Handle "Add new seller" option
+        sel.addEventListener('change', function () {
+            if (this.value === '__add_new__') {
+                this.value = '';
+                window.openQuickSellerModal((newId) => {
+                    // Refresh this dropdown
+                    const freshSellers = getSellers();
+                    const newOpts = freshSellers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+                    this.innerHTML = `<option value="">-- Select Seller --</option>${newOpts}<option value="__add_new__">➕ Add New Seller...</option>`;
+                    this.value = newId;
+                    recalcSellerRow(rowId);
+                });
+            } else {
+                recalcSellerRow(rowId);
+            }
+        });
+
+        recalcSellerRow(rowId);
+    };
+    window.removeSellerPriceRow = function (rowId) {
+        const el = document.getElementById(rowId);
+        if (el) el.remove();
+    };
+    window.recalcSellerRow = function (rowId) {
+        const row = document.getElementById(rowId); if (!row) return;
+        const price = parseFloat(row.querySelector('.sp-price').value) || 0;
+        const mrp = parseFloat(document.getElementById('itemMrp').value) || 0;
+        const discount = getDiscountPct(mrp, price);
+        const badge = row.querySelector('.sp-discount');
+        if (price > 0 && discount > 0) {
+            badge.textContent = `${discount}% off`;
+            badge.className = 'sp-discount discount-badge text-success';
+        } else {
+            badge.textContent = price > 0 ? '—' : '—';
+            badge.className = 'sp-discount discount-badge text-muted';
+        }
+    };
+    // Recalc all seller rows when MRP changes
+    document.addEventListener('input', function (e) {
+        if (e.target && e.target.id === 'itemMrp') {
+            document.querySelectorAll('.seller-price-row').forEach(r => recalcSellerRow(r.id));
+        }
+    });
+
     window.saveItem = function () {
         const itemName = document.getElementById('itemName').value.trim();
         if (!itemName) { showToast('Item name required', 'warning'); return; }
@@ -641,7 +831,20 @@
         const price = parseFloat(document.getElementById('itemPrice').value);
         if (isNaN(price) || price < 0) { showToast('Valid price required', 'warning'); return; }
         const minAlert = parseFloat(document.getElementById('itemMinAlert').value);
-        if (isNaN(minAlert) || minAlert < 0) { showToast('Valid min alert level required', 'warning'); return; }
+        if (isNaN(minAlert) || minAlert < 0) { showToast('Valid min alert required', 'warning'); return; }
+
+        // Collect seller pricing
+        const sellers = [];
+        const seen = new Set();
+        document.querySelectorAll('.seller-price-row').forEach(row => {
+            const sellerId = row.querySelector('.sp-seller').value;
+            const sellerPrice = parseFloat(row.querySelector('.sp-price').value);
+            if (sellerId && sellerId !== '__add_new__' && !isNaN(sellerPrice) && sellerPrice >= 0) {
+                if (seen.has(sellerId)) { showToast('Duplicate seller — only first kept', 'warning'); return; }
+                seen.add(sellerId);
+                sellers.push({ sellerId, price: sellerPrice });
+            }
+        });
 
         const editId = document.getElementById('itemEditId').value;
         const items = getItems();
@@ -650,6 +853,7 @@
             brandId, itemName, categoryId,
             size, unit: document.getElementById('itemUnit').value,
             mrp, price, minAlert,
+            sellers,
             notes: document.getElementById('itemNotes').value.trim(),
             createdAt: editId ? (getItemById(editId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -670,7 +874,7 @@
         refreshItems(); refreshDropdowns(); refreshDashboard();
     };
 
-    // ─── Stock ───────────────────────────────────────
+    // ═══ STOCK ═══
     function getStockStatus(s) {
         const item = getItemById(s.itemId);
         const q = Number(s.quantity) || 0;
@@ -691,7 +895,6 @@
         const brandFilter = document.getElementById('stockBrandFilter')?.value || '';
         const storageFilter = document.getElementById('stockStorageFilter')?.value || '';
         const statusFilter = document.getElementById('stockStatusFilter')?.value || '';
-
         let stock = getStock();
         if (storageFilter) stock = stock.filter(s => s.storageId === storageFilter);
         if (brandFilter) stock = stock.filter(s => { const item = getItemById(s.itemId); return item && item.brandId === brandFilter; });
@@ -714,7 +917,6 @@
             return;
         }
 
-        // Desktop table
         tbody.innerHTML = stock.map(s => {
             const item = getItemById(s.itemId); if (!item) return '';
             const brand = getBrandById(item.brandId);
@@ -730,15 +932,14 @@
                 <td>${formatCurrency(value)}</td>
                 <td><span class="badge-soft ${status.cls}">${status.label}</span></td>
                 <td>
-                    <button class="btn btn-sm btn-outline-success me-1" title="Add 1" onclick="quickAdjust('${s.id}', 1)"><i class="fas fa-plus"></i></button>
-                    <button class="btn btn-sm btn-outline-warning me-1" title="Remove 1" onclick="quickAdjust('${s.id}', -1)"><i class="fas fa-minus"></i></button>
+                    <button class="btn btn-sm btn-outline-success me-1" onclick="quickAdjust('${s.id}', 1)"><i class="fas fa-plus"></i></button>
+                    <button class="btn btn-sm btn-outline-warning me-1" onclick="quickAdjust('${s.id}', -1)"><i class="fas fa-minus"></i></button>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="openStockModal('edit','${s.id}')"><i class="fas fa-edit"></i></button>
                     <button class="btn btn-sm btn-outline-danger" onclick="deleteStock('${s.id}')"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>`;
         }).join('');
 
-        // Mobile cards
         mob.innerHTML = stock.map(s => {
             const item = getItemById(s.itemId); if (!item) return '';
             const brand = getBrandById(item.brandId);
@@ -754,19 +955,10 @@
                     </div>
                     <span class="badge-soft ${status.cls}">${status.label}</span>
                 </div>
-                <div class="mobile-card-row">
-                    <span class="label"><i class="fas fa-warehouse me-1"></i>Storage</span>
-                    <span>${storage ? escapeHtml(storage.name) : '—'}</span>
-                </div>
-                <div class="mobile-card-row">
-                    <span class="label">Quantity</span>
-                    <span><strong>${Number(s.quantity) || 0}</strong> <small class="text-muted">(Alert ≤ ${min})</small></span>
-                </div>
+                <div class="mobile-card-row"><span class="label"><i class="fas fa-warehouse me-1"></i>Storage</span><span>${storage ? escapeHtml(storage.name) : '—'}</span></div>
+                <div class="mobile-card-row"><span class="label">Quantity</span><span><strong>${Number(s.quantity) || 0}</strong> <small class="text-muted">(Alert ≤ ${min})</small></span></div>
                 ${s.expiryDate ? `<div class="mobile-card-row"><span class="label">Expiry</span><span>${formatDate(s.expiryDate)}</span></div>` : ''}
-                <div class="mobile-card-row">
-                    <span class="label">Value</span>
-                    <span><strong>${formatCurrency(value)}</strong></span>
-                </div>
+                <div class="mobile-card-row"><span class="label">Value</span><span><strong>${formatCurrency(value)}</strong></span></div>
                 <div class="mobile-card-actions">
                     <button class="btn btn-outline-success" onclick="quickAdjust('${s.id}', 1)"><i class="fas fa-plus"></i></button>
                     <button class="btn btn-outline-warning" onclick="quickAdjust('${s.id}', -1)"><i class="fas fa-minus"></i></button>
@@ -793,13 +985,11 @@
         document.getElementById('stockPurchaseDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('stockExpiry').value = '';
         document.getElementById('stockNotes').value = '';
-
         populateDropdown('stockItem', getItems().map(i => {
             const brand = getBrandById(i.brandId);
             return { id: i.id, label: `${brand ? brand.name + ' ' : ''}${i.itemName} (${i.size}${i.unit})` };
         }), false);
         populateDropdown('stockStorage', getStorages().map(s => ({ id: s.id, label: s.name })), false);
-
         if (mode === 'edit' && id) {
             const s = getStock().find(x => x.id === id); if (!s) return;
             document.getElementById('stockEditId').value = s.id;
@@ -820,7 +1010,6 @@
         if (!storageId) { showToast('Storage required', 'warning'); return; }
         const qty = parseFloat(document.getElementById('stockQuantity').value);
         if (isNaN(qty) || qty < 0) { showToast('Valid quantity required', 'warning'); return; }
-
         const editId = document.getElementById('stockEditId').value;
         const stock = getStock();
         const data = {
@@ -846,7 +1035,7 @@
         refreshStock(); refreshDashboard(); updateBadges();
     };
 
-    // ─── Shopping List ───────────────────────────────
+    // ═══ SHOPPING LIST ═══
     function refreshShopping() {
         const container = document.getElementById('shoppingListContainer');
         const list = getShopping();
@@ -859,7 +1048,7 @@
             html += `<div class="mt-3 mb-2 text-muted small fw-bold">COMPLETED (${done.length})</div>`;
             html += done.map(s => shoppingItemHTML(s)).join('');
         }
-        const totalEst = active.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
+        const totalEst = active.reduce((sum, s) => sum + (Number(s.totalPrice) || 0), 0);
         if (active.length) {
             html = `<div class="mb-3 d-flex justify-content-between flex-wrap gap-2">
                 <span class="badge-soft green">${active.length} item(s) pending</span>
@@ -869,47 +1058,163 @@
         container.innerHTML = html;
     }
     function shoppingItemHTML(s) {
+        const seller = s.sellerId ? getSellerById(s.sellerId) : null;
+        const item = s.itemId ? getItemById(s.itemId) : null;
+        const brand = item ? getBrandById(item.brandId) : null;
         return `<div class="shopping-item ${s.done ? 'done' : ''}">
             <input type="checkbox" class="form-check-input" ${s.done ? 'checked' : ''} onchange="toggleShoppingDone('${s.id}')">
             <div style="flex:1;min-width:0;">
-                <strong>${escapeHtml(s.name)}</strong>
-                ${s.qty ? `<span class="text-muted"> — ${escapeHtml(s.qty)}</span>` : ''}
-                ${s.notes ? `<br><small class="text-muted">${escapeHtml(s.notes)}</small>` : ''}
+                <div style="font-weight:700;">${escapeHtml(s.name)}</div>
+                <div style="font-size:0.8rem;color:#64748b;margin-top:2px;">
+                    ${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span> ` : ''}
+                    ${seller ? `<span class="seller-chip"><span class="seller-name">${escapeHtml(seller.name)}</span> ${s.price ? `<span class="seller-price">${formatCurrency(s.price)}</span>` : ''}</span>` : ''}
+                    ${s.qty ? `<span class="text-muted"> · Qty: <strong>${s.qty}</strong> ${escapeHtml(s.unit || '')}</span>` : ''}
+                </div>
+                ${s.notes ? `<small class="text-muted">${escapeHtml(s.notes)}</small>` : ''}
             </div>
-            ${s.price ? `<span class="badge-soft blue">${formatCurrency(s.price)}</span>` : ''}
+            <div class="text-end" style="flex-shrink:0;">
+                ${s.totalPrice ? `<strong style="color:#059669;">${formatCurrency(s.totalPrice)}</strong>` : ''}
+            </div>
             <div class="d-flex gap-1">
                 <button class="btn btn-sm btn-outline-primary" onclick="openShoppingModal('edit','${s.id}')"><i class="fas fa-edit"></i></button>
                 <button class="btn btn-sm btn-outline-danger" onclick="deleteShoppingItem('${s.id}')"><i class="fas fa-trash"></i></button>
             </div>
         </div>`;
     }
+
     window.openShoppingModal = function (mode, id) {
         document.getElementById('shoppingEditId').value = '';
         document.getElementById('shoppingModalTitle').textContent = 'Add to Shopping List';
-        document.getElementById('shoppingName').value = '';
-        document.getElementById('shoppingQty').value = '';
+        document.getElementById('shoppingQty').value = '1';
+        document.getElementById('shoppingUnit').value = '';
         document.getElementById('shoppingPrice').value = '';
         document.getElementById('shoppingNotes').value = '';
+        document.getElementById('shoppingTotalPreview').textContent = '₹0';
+
+        // Populate item dropdown (from Item Master)
+        const items = getItems();
+        const itemOpts = items.map(i => {
+            const brand = getBrandById(i.brandId);
+            return `<option value="${i.id}">${escapeHtml((brand ? brand.name + ' ' : '') + i.itemName)} (${i.size}${i.unit})</option>`;
+        }).join('');
+        const itemSel = document.getElementById('shoppingItemSelect');
+        itemSel.innerHTML = '<option value="">-- Select Item --</option>' + itemOpts;
+
+        // Seller dropdown will be populated after item is selected
+        document.getElementById('shoppingSellerSelect').innerHTML = '<option value="">-- Select Item first --</option>';
+
         if (mode === 'edit' && id) {
             const s = getShopping().find(x => x.id === id); if (!s) return;
             document.getElementById('shoppingEditId').value = s.id;
             document.getElementById('shoppingModalTitle').textContent = 'Edit Shopping Item';
-            document.getElementById('shoppingName').value = s.name;
-            document.getElementById('shoppingQty').value = s.qty || '';
+            if (s.itemId) {
+                itemSel.value = s.itemId;
+                onShoppingItemChange();
+                if (s.sellerId) {
+                    const sellerSel = document.getElementById('shoppingSellerSelect');
+                    sellerSel.value = s.sellerId;
+                }
+            }
+            document.getElementById('shoppingQty').value = s.qty || '1';
             document.getElementById('shoppingPrice').value = s.price || '';
             document.getElementById('shoppingNotes').value = s.notes || '';
+            recalcShoppingTotal();
         }
         new bootstrap.Modal(document.getElementById('shoppingModal')).show();
     };
+
+    window.onShoppingItemChange = function () {
+        const itemId = document.getElementById('shoppingItemSelect').value;
+        const sellerSel = document.getElementById('shoppingSellerSelect');
+        const qtyIn = document.getElementById('shoppingQty');
+        const unitIn = document.getElementById('shoppingUnit');
+        const priceIn = document.getElementById('shoppingPrice');
+
+        if (!itemId) {
+            sellerSel.innerHTML = '<option value="">-- Select Item first --</option>';
+            unitIn.value = '';
+            priceIn.value = '';
+            qtyIn.value = '1';
+            recalcShoppingTotal();
+            return;
+        }
+
+        const item = getItemById(itemId); if (!item) return;
+        unitIn.value = item.unit || '';
+
+        // Populate sellers from item's seller list
+        const itemSellers = (item.sellers || []);
+        if (!itemSellers.length) {
+            sellerSel.innerHTML = '<option value="">-- No sellers for this item --</option>';
+            // Fallback to base price
+            priceIn.value = item.price || item.mrp || '';
+        } else {
+            const opts = itemSellers.map(sp => {
+                const seller = getSellerById(sp.sellerId);
+                if (!seller) return '';
+                const disc = getDiscountPct(item.mrp, sp.price);
+                return `<option value="${sp.sellerId}" data-price="${sp.price}">${escapeHtml(seller.name)} — ${formatCurrency(sp.price)}${disc ? ' (' + disc + '% off)' : ''}</option>`;
+            }).join('');
+            sellerSel.innerHTML = '<option value="">-- Select Seller --</option>' + opts;
+
+            // Auto-select best seller
+            const best = getBestSellerPrice(item);
+            if (best) {
+                sellerSel.value = best.sellerId;
+                priceIn.value = best.price;
+            } else if (itemSellers.length) {
+                sellerSel.value = itemSellers[0].sellerId;
+                priceIn.value = itemSellers[0].price;
+            }
+        }
+        recalcShoppingTotal();
+    };
+
+    window.onShoppingSellerChange = function () {
+        const sellerId = document.getElementById('shoppingSellerSelect').value;
+        const itemId = document.getElementById('shoppingItemSelect').value;
+        const priceIn = document.getElementById('shoppingPrice');
+        if (!itemId || !sellerId) return;
+        const item = getItemById(itemId); if (!item) return;
+        const sp = getSellerPrice(item, sellerId);
+        if (sp) priceIn.value = sp.price;
+        recalcShoppingTotal();
+    };
+
+    window.recalcShoppingTotal = function () {
+        const qty = parseFloat(document.getElementById('shoppingQty').value) || 0;
+        const price = parseFloat(document.getElementById('shoppingPrice').value) || 0;
+        const total = qty * price;
+        document.getElementById('shoppingTotalPreview').textContent = formatCurrency(total);
+    };
+
+    // Attach qty change listener
+    document.addEventListener('input', function (e) {
+        if (e.target && e.target.id === 'shoppingQty') recalcShoppingTotal();
+    });
+
     window.saveShoppingItem = function () {
-        const name = document.getElementById('shoppingName').value.trim();
-        if (!name) { showToast('Item name required', 'warning'); return; }
+        const itemId = document.getElementById('shoppingItemSelect').value;
+        if (!itemId) { showToast('Please select an item', 'warning'); return; }
+        const item = getItemById(itemId); if (!item) { showToast('Item not found', 'error'); return; }
+        const qty = parseFloat(document.getElementById('shoppingQty').value);
+        if (isNaN(qty) || qty <= 0) { showToast('Valid quantity required', 'warning'); return; }
+        const price = parseFloat(document.getElementById('shoppingPrice').value) || 0;
+        const sellerId = document.getElementById('shoppingSellerSelect').value || null;
+        const seller = sellerId ? getSellerById(sellerId) : null;
+        const brand = getBrandById(item.brandId);
+
         const editId = document.getElementById('shoppingEditId').value;
         const list = getShopping();
         const data = {
-            id: editId || uid('shp'), name,
-            qty: document.getElementById('shoppingQty').value.trim(),
-            price: parseFloat(document.getElementById('shoppingPrice').value) || 0,
+            id: editId || uid('shp'),
+            itemId,
+            sellerId,
+            name: (brand ? brand.name + ' ' : '') + item.itemName,
+            qty,
+            unit: item.unit,
+            price,
+            totalPrice: qty * price,
             notes: document.getElementById('shoppingNotes').value.trim(),
             done: editId ? (list.find(x => x.id === editId)?.done || false) : false,
             createdAt: editId ? (list.find(x => x.id === editId)?.createdAt || new Date().toISOString()) : new Date().toISOString()
@@ -944,15 +1249,21 @@
         lowStock.forEach(s => {
             const item = getItemById(s.itemId); if (!item) return;
             const brand = getBrandById(item.brandId);
-            const existing = list.find(x => !x.done && x.name.toLowerCase().includes(item.itemName.toLowerCase()));
+            const existing = list.find(x => !x.done && x.itemId === item.id);
             if (existing) return;
             const min = getMinAlert(item);
             const shortfall = Math.max(1, min - (Number(s.quantity) || 0) + 1);
+            const best = getBestSellerPrice(item);
+            const price = best ? best.price : getSellingPrice(item);
             list.push({
                 id: uid('shp'),
-                name: `${brand ? brand.name + ' ' : ''}${item.itemName}`,
-                qty: `${shortfall} x ${item.size}${item.unit}`,
-                price: getSellingPrice(item) * shortfall,
+                itemId: item.id,
+                sellerId: best ? best.sellerId : null,
+                name: (brand ? brand.name + ' ' : '') + item.itemName,
+                qty: shortfall,
+                unit: item.unit,
+                price,
+                totalPrice: shortfall * price,
                 notes: 'Auto-added from low stock',
                 done: false,
                 createdAt: new Date().toISOString()
@@ -968,12 +1279,14 @@
         if (!list.length) { showToast('Shopping list is empty', 'warning'); return; }
         let text = '🛒 *Shopping List*\n\n';
         list.forEach((s, i) => {
+            const seller = s.sellerId ? getSellerById(s.sellerId) : null;
             text += `${i + 1}. ${s.name}`;
-            if (s.qty) text += ` — ${s.qty}`;
-            if (s.price) text += ` (₹${s.price})`;
+            if (seller) text += ` [${seller.name}]`;
+            if (s.qty) text += ` — ${s.qty} ${s.unit || ''}`;
+            if (s.totalPrice) text += ` — ₹${s.totalPrice}`;
             text += '\n';
         });
-        const total = list.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
+        const total = list.reduce((sum, s) => sum + (Number(s.totalPrice) || 0), 0);
         text += `\n💰 Est. Total: ₹${total}\n\n— GharSeva`;
         if (navigator.clipboard) {
             navigator.clipboard.writeText(text).then(() => showToast('Shopping list copied!', 'success'));
@@ -983,7 +1296,7 @@
         }
     };
 
-    // ─── Dropdowns ───────────────────────────────────
+    // ═══ Dropdowns ═══
     function populateDropdown(elId, options, addEmpty = true) {
         const el = document.getElementById(elId); if (!el) return;
         let html = addEmpty ? '<option value="">-- Select --</option>' : '';
@@ -1017,7 +1330,7 @@
         }
     }
 
-    // ─── Google Drive Backup ─────────────────────────
+    // ═══ Google Drive (same as before) ═══
     function getDriveConfig() { return load('gdrive_config', { clientId: '', folderName: '' }); }
     window.saveGoogleDriveConfig = function () {
         const clientId = document.getElementById('gdriveClientId').value.trim();
@@ -1159,7 +1472,7 @@
         } catch (e) { setDriveStatus('❌ ' + e.message, true); }
     };
 
-    // ─── Export / Import / Clear / Sample ────────────
+    // ═══ Export / Import / Clear / Sample ═══
     window.exportData = function () {
         const data = getAllData();
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1189,7 +1502,7 @@
     window.clearAllData = function () {
         if (!confirm('⚠️ Delete ALL data? This cannot be undone.')) return;
         if (!confirm('Are you absolutely sure?')) return;
-        saveStorages([]); saveCategories([]); saveBrands([]); saveItems([]); saveStock([]); saveShopping([]);
+        saveStorages([]); saveCategories([]); saveBrands([]); saveSellers([]); saveItems([]); saveStock([]); saveShopping([]);
         showToast('All data cleared', 'success');
         refreshCurrentPage(); refreshDropdowns();
     };
@@ -1208,12 +1521,18 @@
         const brd3 = { id: uid('brd'), name: 'Amul', description: 'Dairy regular', createdAt: now };
         const brd4 = { id: uid('brd'), name: 'Happilo', description: 'Dry fruits', createdAt: now };
         const brd5 = { id: uid('brd'), name: 'Fortune', description: 'Oil & atta', createdAt: now };
-        const itm1 = { id: uid('itm'), brandId: brd1.id, itemName: 'Toor Dal', categoryId: cat1.id, size: 1, unit: 'kg', mrp: 220, price: 180, minAlert: 2, notes: '', createdAt: now, updatedAt: now };
-        const itm2 = { id: uid('itm'), brandId: brd2.id, itemName: 'Turmeric Powder', categoryId: cat3.id, size: 100, unit: 'gm', mrp: 50, price: 45, minAlert: 1, notes: '', createdAt: now, updatedAt: now };
-        const itm3 = { id: uid('itm'), brandId: brd3.id, itemName: 'Milk', categoryId: cat4.id, size: 1, unit: 'l', mrp: 66, price: 60, minAlert: 3, notes: '', createdAt: now, updatedAt: now };
-        const itm4 = { id: uid('itm'), brandId: brd4.id, itemName: 'Almonds', categoryId: cat2.id, size: 250, unit: 'gm', mrp: 400, price: 350, minAlert: 1, notes: '', createdAt: now, updatedAt: now };
-        const itm5 = { id: uid('itm'), brandId: brd5.id, itemName: 'Sunflower Oil', categoryId: cat3.id, size: 1, unit: 'l', mrp: 160, price: 140, minAlert: 1, notes: '', createdAt: now, updatedAt: now };
-        const itm6 = { id: uid('itm'), brandId: brd1.id, itemName: 'Salt', categoryId: cat3.id, size: 1, unit: 'kg', mrp: 28, price: 25, minAlert: 1, notes: '', createdAt: now, updatedAt: now };
+        const slr1 = { id: uid('slr'), name: 'Zepto', description: '10-min delivery', createdAt: now };
+        const slr2 = { id: uid('slr'), name: 'Blinkit', description: 'Fast delivery', createdAt: now };
+        const slr3 = { id: uid('slr'), name: 'BigBasket', description: 'Grocery app', createdAt: now };
+        const slr4 = { id: uid('slr'), name: 'DMart', description: 'Local store', createdAt: now };
+
+        const itm1 = { id: uid('itm'), brandId: brd1.id, itemName: 'Toor Dal', categoryId: cat1.id, size: 1, unit: 'kg', mrp: 220, price: 180, minAlert: 2, notes: '', sellers: [{ sellerId: slr1.id, price: 189 }, { sellerId: slr2.id, price: 175 }, { sellerId: slr3.id, price: 185 }], createdAt: now, updatedAt: now };
+        const itm2 = { id: uid('itm'), brandId: brd2.id, itemName: 'Turmeric Powder', categoryId: cat3.id, size: 100, unit: 'gm', mrp: 50, price: 45, minAlert: 1, notes: '', sellers: [{ sellerId: slr1.id, price: 45 }, { sellerId: slr2.id, price: 42 }], createdAt: now, updatedAt: now };
+        const itm3 = { id: uid('itm'), brandId: brd3.id, itemName: 'Milk', categoryId: cat4.id, size: 1, unit: 'l', mrp: 66, price: 60, minAlert: 3, notes: '', sellers: [{ sellerId: slr1.id, price: 62 }, { sellerId: slr2.id, price: 60 }, { sellerId: slr4.id, price: 58 }], createdAt: now, updatedAt: now };
+        const itm4 = { id: uid('itm'), brandId: brd4.id, itemName: 'Almonds', categoryId: cat2.id, size: 250, unit: 'gm', mrp: 400, price: 350, minAlert: 1, notes: '', sellers: [{ sellerId: slr1.id, price: 375 }, { sellerId: slr3.id, price: 340 }], createdAt: now, updatedAt: now };
+        const itm5 = { id: uid('itm'), brandId: brd5.id, itemName: 'Sunflower Oil', categoryId: cat3.id, size: 1, unit: 'l', mrp: 160, price: 140, minAlert: 1, notes: '', sellers: [{ sellerId: slr2.id, price: 139 }, { sellerId: slr3.id, price: 142 }], createdAt: now, updatedAt: now };
+        const itm6 = { id: uid('itm'), brandId: brd1.id, itemName: 'Salt', categoryId: cat3.id, size: 1, unit: 'kg', mrp: 28, price: 25, minAlert: 1, notes: '', sellers: [{ sellerId: slr4.id, price: 24 }], createdAt: now, updatedAt: now };
+
         const exp1 = new Date(); exp1.setDate(exp1.getDate() + 5);
         const exp2 = new Date(); exp2.setDate(exp2.getDate() + 20);
         const exp3 = new Date(); exp3.setDate(exp3.getDate() + 180);
@@ -1228,6 +1547,7 @@
         saveStorages([stg1, stg2, stg3]);
         saveCategories([cat1, cat2, cat3, cat4]);
         saveBrands([brd1, brd2, brd3, brd4, brd5]);
+        saveSellers([slr1, slr2, slr3, slr4]);
         saveItems([itm1, itm2, itm3, itm4, itm5, itm6]);
         saveStock(stock);
         saveShopping([]);
@@ -1236,7 +1556,7 @@
         navigateTo('dashboard');
     };
 
-    // ─── Listeners ───────────────────────────────────
+    // ═══ Listeners ═══
     function attachSearchListeners() {
         ['stockSearch', 'stockBrandFilter', 'stockStorageFilter', 'stockStatusFilter'].forEach(id => {
             const el = document.getElementById(id);
@@ -1248,37 +1568,29 @@
         });
     }
 
-    // ─── Init ────────────────────────────────────────
+    // ═══ Init ═══
     function init() {
         document.getElementById('currentDateDisplay').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
         document.querySelectorAll('.sidebar-nav .nav-link').forEach(l => l.addEventListener('click', function () {
             const page = this.getAttribute('data-page');
             if (page) navigateTo(page);
         }));
-
-        // Mobile menu handlers
         const menuBtn = document.getElementById('mobileMenuBtn');
         const closeBtn = document.getElementById('sidebarCloseBtn');
         const overlay = document.getElementById('sidebarOverlay');
         if (menuBtn) menuBtn.addEventListener('click', openSidebar);
         if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
         if (overlay) overlay.addEventListener('click', closeSidebar);
-
-        // Close sidebar on ESC
         document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
-
-        // Handle resize
         let rt;
         window.addEventListener('resize', () => {
             clearTimeout(rt);
             rt = setTimeout(() => {
                 if (!isMobile()) closeSidebar();
-                // Update FAB visibility
                 const fab = document.getElementById('mobileFab');
-                if (fab) fab.style.display = (isMobile() && ['stock', 'items', 'brands', 'categories', 'storages'].includes(currentPage)) ? 'flex' : 'none';
+                if (fab) fab.style.display = (isMobile() && ['stock', 'items', 'brands', 'sellers', 'categories', 'storages'].includes(currentPage)) ? 'flex' : 'none';
             }, 200);
         });
-
         attachSearchListeners();
         refreshDropdowns();
         navigateTo('dashboard');

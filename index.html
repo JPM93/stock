@@ -47,6 +47,8 @@
                         Master</button></div>
                 <div class="nav-item"><button class="nav-link" data-page="brands"><i class="fas fa-copyright"></i> Brand
                         Master</button></div>
+                <div class="nav-item"><button class="nav-link" data-page="sellers"><i class="fas fa-store"></i> Seller
+                        Master</button></div>
                 <div class="nav-item"><button class="nav-link" data-page="categories"><i class="fas fa-layer-group"></i>
                         Categories</button></div>
                 <div class="nav-item"><button class="nav-link" data-page="storages"><i class="fas fa-warehouse"></i>
@@ -57,7 +59,7 @@
                         & Sync</button></div>
             </nav>
             <div class="sidebar-footer">
-                <small style="color:#64748b;font-size:0.7rem;">GharSeva v1.2</small>
+                <small style="color:#64748b;font-size:0.7rem;">GharSeva v1.3</small>
             </div>
         </aside>
 
@@ -174,7 +176,6 @@
                     </select>
                 </div>
 
-                <!-- Desktop table -->
                 <div class="card-custom d-none d-md-block">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle">
@@ -194,7 +195,6 @@
                         </table>
                     </div>
                 </div>
-                <!-- Mobile cards -->
                 <div class="d-md-none" id="stockMobileList"></div>
             </div>
 
@@ -226,7 +226,8 @@
                                     <th>Category</th>
                                     <th>Size</th>
                                     <th>MRP</th>
-                                    <th>Price</th>
+                                    <th>Base Price</th>
+                                    <th>Best Seller</th>
                                     <th>Min Alert</th>
                                     <th>Actions</th>
                                 </tr>
@@ -246,6 +247,16 @@
                             class="fas fa-plus me-1"></i>Add Brand</button>
                 </div>
                 <div class="row g-3" id="brandsGrid"></div>
+            </div>
+
+            <!-- Seller Master -->
+            <div class="section-page" id="page-sellers">
+                <div class="page-header">
+                    <h5 class="fw-bold mb-0">🏪 Seller Master</h5>
+                    <button class="btn btn-primary-custom btn-sm" onclick="openSellerModal()"><i
+                            class="fas fa-plus me-1"></i>Add Seller</button>
+                </div>
+                <div class="row g-3" id="sellersGrid"></div>
             </div>
 
             <!-- Categories -->
@@ -310,16 +321,12 @@
                     <div class="col-12 col-md-6">
                         <div class="card-custom">
                             <h6><i class="fab fa-google-drive me-2"></i>Google Drive Sync</h6>
-                            <div class="mb-2">
-                                <label class="form-label small">Google OAuth Client ID</label>
-                                <input type="text" class="form-control form-control-sm" id="gdriveClientId"
-                                    placeholder="Your Client ID">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small">Drive Folder Name</label>
-                                <input type="text" class="form-control form-control-sm" id="gdriveFolderName"
-                                    placeholder="e.g., GharSevaBackup">
-                            </div>
+                            <div class="mb-2"><label class="form-label small">Google OAuth Client ID</label><input
+                                    type="text" class="form-control form-control-sm" id="gdriveClientId"
+                                    placeholder="Your Client ID"></div>
+                            <div class="mb-2"><label class="form-label small">Drive Folder Name</label><input
+                                    type="text" class="form-control form-control-sm" id="gdriveFolderName"
+                                    placeholder="e.g., GharSevaBackup"></div>
                             <button class="btn btn-sm btn-primary-custom mb-2 w-100"
                                 onclick="saveGoogleDriveConfig()">💾 Save Config</button>
                             <div class="d-flex gap-2 flex-wrap">
@@ -352,10 +359,10 @@
         </main>
     </div>
 
-    <!-- FAB for mobile -->
+    <!-- FAB -->
     <button class="mobile-fab" id="mobileFab" style="display:none;"><i class="fas fa-plus"></i></button>
 
-    <!-- Storage Modal -->
+    <!-- ══════════ STORAGE MODAL ══════════ -->
     <div class="modal fade modal-custom" id="storageModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
@@ -366,8 +373,7 @@
                 <div class="modal-body">
                     <input type="hidden" id="storageEditId">
                     <div class="mb-3"><label class="form-label fw-semibold">Storage Name *</label><input type="text"
-                            class="form-control" id="storageName"
-                            placeholder="e.g., Refrigerator, Storage Box, Rack A Floor 1"></div>
+                            class="form-control" id="storageName" placeholder="e.g., Refrigerator"></div>
                     <div class="mb-3"><label class="form-label fw-semibold">Type</label>
                         <select class="form-select" id="storageType">
                             <option value="rack">Rack / Shelf</option>
@@ -379,8 +385,7 @@
                         </select>
                     </div>
                     <div class="mb-3"><label class="form-label fw-semibold">Location / Notes</label><textarea
-                            class="form-control" id="storageDescription" rows="2"
-                            placeholder="e.g., Kitchen corner, 2nd floor"></textarea></div>
+                            class="form-control" id="storageDescription" rows="2"></textarea></div>
                 </div>
                 <div class="modal-footer"><button class="btn btn-outline-custom"
                         data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
@@ -389,7 +394,7 @@
         </div>
     </div>
 
-    <!-- Category Modal -->
+    <!-- ══════════ CATEGORY MODAL ══════════ -->
     <div class="modal fade modal-custom" id="categoryModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
@@ -400,7 +405,7 @@
                 <div class="modal-body">
                     <input type="hidden" id="categoryEditId">
                     <div class="mb-3"><label class="form-label fw-semibold">Category Name *</label><input type="text"
-                            class="form-control" id="categoryName" placeholder="e.g., Kathod, Dery, Masala"></div>
+                            class="form-control" id="categoryName"></div>
                     <div class="mb-3"><label class="form-label fw-semibold">Description</label><textarea
                             class="form-control" id="categoryDescription" rows="2"></textarea></div>
                 </div>
@@ -411,7 +416,7 @@
         </div>
     </div>
 
-    <!-- Brand Modal -->
+    <!-- ══════════ BRAND MODAL ══════════ -->
     <div class="modal fade modal-custom" id="brandModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
@@ -422,10 +427,9 @@
                 <div class="modal-body">
                     <input type="hidden" id="brandEditId">
                     <div class="mb-3"><label class="form-label fw-semibold">Brand Name *</label><input type="text"
-                            class="form-control" id="brandName" placeholder="e.g., Tata, Amul, MDH"></div>
+                            class="form-control" id="brandName" placeholder="e.g., Tata, Amul"></div>
                     <div class="mb-3"><label class="form-label fw-semibold">Description / Notes</label><textarea
-                            class="form-control" id="brandDescription" rows="2"
-                            placeholder="e.g., Preferred supplier, Regular brand"></textarea></div>
+                            class="form-control" id="brandDescription" rows="2"></textarea></div>
                 </div>
                 <div class="modal-footer"><button class="btn btn-outline-custom"
                         data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
@@ -434,7 +438,29 @@
         </div>
     </div>
 
-    <!-- Item Modal -->
+    <!-- ══════════ SELLER MODAL ══════════ -->
+    <div class="modal fade modal-custom" id="sellerModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="sellerModalTitle">Add Seller</h5><button type="button"
+                        class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="sellerEditId">
+                    <div class="mb-3"><label class="form-label fw-semibold">Seller Name *</label><input type="text"
+                            class="form-control" id="sellerName" placeholder="e.g., Zepto, Blinkit, BigBasket"></div>
+                    <div class="mb-3"><label class="form-label fw-semibold">Notes</label><textarea class="form-control"
+                            id="sellerDescription" rows="2" placeholder="Optional"></textarea></div>
+                </div>
+                <div class="modal-footer"><button class="btn btn-outline-custom"
+                        data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
+                        onclick="saveSeller()">💾 Save</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════ ITEM MODAL ══════════ -->
     <div class="modal fade modal-custom" id="itemModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
             <div class="modal-content">
@@ -445,15 +471,12 @@
                 <div class="modal-body">
                     <input type="hidden" id="itemEditId">
                     <div class="row g-3">
-                        <div class="col-12 col-md-6"><label class="form-label fw-semibold">Brand *</label>
-                            <select class="form-select" id="itemBrand"></select>
-                        </div>
+                        <div class="col-12 col-md-6"><label class="form-label fw-semibold">Brand *</label><select
+                                class="form-select" id="itemBrand"></select></div>
                         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Item Name *</label><input
-                                type="text" class="form-control" id="itemName" placeholder="e.g., Salt, Milk, Turmeric">
-                        </div>
-                        <div class="col-12 col-md-6"><label class="form-label fw-semibold">Category *</label>
-                            <select class="form-select" id="itemCategory"></select>
-                        </div>
+                                type="text" class="form-control" id="itemName" placeholder="e.g., Salt, Milk"></div>
+                        <div class="col-12 col-md-6"><label class="form-label fw-semibold">Category *</label><select
+                                class="form-select" id="itemCategory"></select></div>
                         <div class="col-6 col-md-3"><label class="form-label fw-semibold">Size *</label><input
                                 type="number" class="form-control" id="itemSize" placeholder="1" step="0.01" min="0">
                         </div>
@@ -472,15 +495,33 @@
                         <div class="col-6 col-md-4"><label class="form-label fw-semibold">MRP (₹) *</label><input
                                 type="number" class="form-control" id="itemMrp" placeholder="e.g., 30" step="0.01"
                                 min="0"></div>
-                        <div class="col-6 col-md-4"><label class="form-label fw-semibold">Selling Price (₹)
-                                *</label><input type="number" class="form-control" id="itemPrice" placeholder="e.g., 25"
-                                step="0.01" min="0"></div>
+                        <div class="col-6 col-md-4"><label class="form-label fw-semibold">Base Price (₹) *</label><input
+                                type="number" class="form-control" id="itemPrice" placeholder="e.g., 25" step="0.01"
+                                min="0"><small class="text-muted" style="font-size:0.7rem;">Default / fallback
+                                price</small></div>
                         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Min Alert Level
                                 *</label><input type="number" class="form-control" id="itemMinAlert"
-                                placeholder="e.g., 1" step="0.01" min="0" value="1"><small class="text-muted"
-                                style="font-size:0.7rem;">Isse kam hone par alert</small></div>
+                                placeholder="e.g., 1" step="0.01" min="0" value="1"></div>
                         <div class="col-12"><label class="form-label fw-semibold">Notes</label><input type="text"
                                 class="form-control" id="itemNotes" placeholder="Optional"></div>
+
+                        <!-- ═══ SELLER PRICING SECTION ═══ -->
+                        <div class="col-12">
+                            <hr class="my-2">
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                <label class="form-label fw-semibold mb-0">
+                                    <i class="fas fa-store text-primary me-1"></i>Seller Pricing
+                                    <small class="text-muted fw-normal">(Best price per platform)</small>
+                                </label>
+                                <button type="button" class="btn btn-sm btn-outline-custom"
+                                    onclick="addSellerPriceRow()">
+                                    <i class="fas fa-plus me-1"></i>Add Seller
+                                </button>
+                            </div>
+                            <div id="sellerPricingContainer"></div>
+                            <small class="text-muted" style="font-size:0.72rem;">Har seller ka price alag ho sakta hai.
+                                Discount % auto-calculate hoga.</small>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer"><button class="btn btn-outline-custom"
@@ -490,7 +531,7 @@
         </div>
     </div>
 
-    <!-- Stock Modal -->
+    <!-- ══════════ STOCK MODAL ══════════ -->
     <div class="modal fade modal-custom" id="stockModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
             <div class="modal-content">
@@ -523,7 +564,7 @@
         </div>
     </div>
 
-    <!-- Shopping Modal -->
+    <!-- ══════════ SHOPPING MODAL ══════════ -->
     <div class="modal fade modal-custom" id="shoppingModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
@@ -533,19 +574,67 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="shoppingEditId">
-                    <div class="mb-3"><label class="form-label fw-semibold">Item / Description *</label><input
-                            type="text" class="form-control" id="shoppingName" placeholder="e.g., Amul Milk 1L"></div>
-                    <div class="mb-3"><label class="form-label fw-semibold">Quantity</label><input type="text"
-                            class="form-control" id="shoppingQty" placeholder="e.g., 2 packets, 1 kg"></div>
-                    <div class="mb-3"><label class="form-label fw-semibold">Estimated Price (₹)</label><input
-                            type="number" class="form-control" id="shoppingPrice" placeholder="e.g., 50" step="0.01"
-                            min="0"></div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Item *</label>
+                        <select class="form-select" id="shoppingItemSelect" onchange="onShoppingItemChange()"></select>
+                        <small class="text-muted" style="font-size:0.72rem;">Item Master se select karein</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Seller</label>
+                        <select class="form-select" id="shoppingSellerSelect"
+                            onchange="onShoppingSellerChange()"></select>
+                        <small class="text-muted" style="font-size:0.72rem;">Us item ke liye available sellers</small>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Quantity *</label>
+                            <input type="number" class="form-control" id="shoppingQty" placeholder="1" step="0.01"
+                                min="0.01">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Unit</label>
+                            <input type="text" class="form-control" id="shoppingUnit" readonly>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Price per unit (₹)</label>
+                        <input type="number" class="form-control" id="shoppingPrice" placeholder="0" step="0.01" min="0"
+                            oninput="recalcShoppingTotal()">
+                        <small class="text-muted" style="font-size:0.72rem;">Seller ke hisaab se auto-fill</small>
+                    </div>
+                    <div class="mb-3 p-2 rounded" style="background:#f0fdf4;border:1px solid #bbf7d0;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-semibold small">Estimated Total:</span>
+                            <strong id="shoppingTotalPreview" style="color:#059669;">₹0</strong>
+                        </div>
+                    </div>
                     <div class="mb-3"><label class="form-label fw-semibold">Notes</label><input type="text"
                             class="form-control" id="shoppingNotes" placeholder="Optional"></div>
                 </div>
                 <div class="modal-footer"><button class="btn btn-outline-custom"
                         data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
                         onclick="saveShoppingItem()">💾 Save</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════ QUICK ADD SELLER MODAL ══════════ -->
+    <div class="modal fade modal-custom" id="quickSellerModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Add New Seller</h5><button type="button" class="btn-close"
+                        data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3"><label class="form-label fw-semibold">Seller Name *</label><input type="text"
+                            class="form-control" id="quickSellerName" placeholder="e.g., Zepto"></div>
+                    <div class="mb-3"><label class="form-label fw-semibold">Notes</label><textarea class="form-control"
+                            id="quickSellerDescription" rows="2"></textarea></div>
+                </div>
+                <div class="modal-footer"><button class="btn btn-outline-custom"
+                        data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
+                        onclick="saveQuickSeller()">💾 Save & Select</button></div>
             </div>
         </div>
     </div>
