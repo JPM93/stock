@@ -10,10 +10,13 @@
     --sidebar-width: 260px;
     --mobile-topbar-h: 56px;
     --mobile-bottom-nav-h: 62px;
-    --safe-top: env(safe-area-inset-top, 0px);
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --safe-left: env(safe-area-inset-left, 0px);
-    --safe-right: env(safe-area-inset-right, 0px);
+
+    /* Safe areas — Android + iOS dono */
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+
     --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
     --card-hover-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
     --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -29,6 +32,7 @@
 html {
     -webkit-text-size-adjust: 100%;
     overscroll-behavior-y: none;
+    height: 100%;
 }
 
 body {
@@ -38,18 +42,18 @@ body {
     min-height: 100vh;
     min-height: 100dvh;
     overflow-x: hidden;
-    padding-left: var(--safe-left);
-    padding-right: var(--safe-right);
+    position: relative;
 }
 
 .app-container {
     display: flex;
     min-height: 100vh;
     min-height: 100dvh;
+    width: 100%;
 }
 
 /* ═══════════════════════════════════════════
-   MOBILE TOP BAR (Android app style)
+   MOBILE TOP BAR
    ═══════════════════════════════════════════ */
 .mobile-topbar {
     display: none;
@@ -57,10 +61,11 @@ body {
     top: 0;
     left: 0;
     right: 0;
-    height: calc(var(--mobile-topbar-h) + var(--safe-top));
-    padding-top: var(--safe-top);
-    padding-left: 12px;
-    padding-right: 12px;
+    /* Height = content height + safe top */
+    height: calc(var(--mobile-topbar-h) + var(--sat));
+    padding-top: var(--sat);
+    padding-left: calc(12px + var(--sal));
+    padding-right: calc(12px + var(--sar));
     background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
     color: #e2e8f0;
     align-items: center;
@@ -71,18 +76,18 @@ body {
 
 .mobile-brand {
     font-weight: 700;
-    font-size: 1.05rem;
+    font-size: 1.02rem;
     background: linear-gradient(135deg, #34d399, #38bdf8);
     -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
     background-clip: text;
-    letter-spacing: -0.3px;
+    -webkit-text-fill-color: transparent;
     text-align: center;
     flex: 1;
     padding: 0 8px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.2;
 }
 
 .mobile-menu-btn {
@@ -97,8 +102,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: var(--transition);
     flex-shrink: 0;
+    transition: transform 0.15s ease;
 }
 
 .mobile-menu-btn:active {
@@ -107,7 +112,7 @@ body {
 }
 
 /* ═══════════════════════════════════════════
-   BOTTOM NAVIGATION (Android app style)
+   BOTTOM NAVIGATION
    ═══════════════════════════════════════════ */
 .bottom-nav {
     display: none;
@@ -115,8 +120,8 @@ body {
     bottom: 0;
     left: 0;
     right: 0;
-    height: calc(var(--mobile-bottom-nav-h) + var(--safe-bottom));
-    padding-bottom: var(--safe-bottom);
+    height: calc(var(--mobile-bottom-nav-h) + var(--sab));
+    padding-bottom: var(--sab);
     background: #ffffff;
     border-top: 1px solid #e2e8f0;
     z-index: 997;
@@ -135,13 +140,12 @@ body {
     align-items: center;
     justify-content: center;
     gap: 3px;
-    padding: 6px 2px;
+    padding: 6px 2px 4px;
     font-size: 0.68rem;
     font-weight: 600;
     cursor: pointer;
     transition: color 0.15s ease, transform 0.15s ease;
     position: relative;
-    -webkit-tap-highlight-color: transparent;
 }
 
 .bottom-nav-item i {
@@ -214,8 +218,8 @@ body {
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding-top: var(--safe-top);
-    padding-bottom: var(--safe-bottom);
+    padding-top: var(--sat);
+    padding-bottom: var(--sab);
 }
 
 .sidebar-header {
@@ -232,8 +236,8 @@ body {
     margin: 0;
     background: linear-gradient(135deg, #34d399, #38bdf8);
     -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
     background-clip: text;
+    -webkit-text-fill-color: transparent;
     letter-spacing: -1px;
 }
 
@@ -290,10 +294,6 @@ body {
     background: rgba(16, 185, 129, 0.25);
 }
 
-.sidebar-nav .nav-link:active {
-    transform: scale(0.98);
-}
-
 .sidebar-nav .nav-link i {
     width: 20px;
     text-align: center;
@@ -325,8 +325,6 @@ body {
     z-index: 999;
     opacity: 0;
     transition: opacity 0.28s ease;
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
 }
 
 .sidebar-overlay.show {
@@ -398,13 +396,9 @@ body {
     border-radius: 16px;
     padding: 1.25rem;
     box-shadow: var(--card-shadow);
-    transition: var(--transition);
+    transition: box-shadow 0.2s ease;
     border: 1px solid #e2e8f0;
     margin-bottom: 1rem;
-}
-
-.card-custom:hover {
-    box-shadow: var(--card-hover-shadow);
 }
 
 .stat-card {
@@ -413,7 +407,7 @@ body {
     padding: 1.1rem 1.2rem;
     box-shadow: var(--card-shadow);
     border-left: 4px solid var(--primary);
-    transition: var(--transition);
+    transition: transform 0.15s ease;
     height: 100%;
 }
 
@@ -462,14 +456,13 @@ body {
     padding: 0.55rem 1.2rem;
     border-radius: 12px;
     font-weight: 600;
-    transition: var(--transition);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
     box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
     min-height: 44px;
     font-size: 0.9rem;
 }
 
 .btn-primary-custom:hover {
-    transform: translateY(-1px);
     box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
     color: #fff;
 }
@@ -485,7 +478,7 @@ body {
     padding: 0.55rem 1.2rem;
     border-radius: 12px;
     font-weight: 600;
-    transition: var(--transition);
+    transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     min-height: 44px;
     font-size: 0.9rem;
 }
@@ -571,7 +564,7 @@ body {
     padding: 1rem 1.1rem;
     box-shadow: var(--card-shadow);
     border: 1px solid #e2e8f0;
-    transition: var(--transition);
+    transition: transform 0.15s ease;
     height: 100%;
 }
 
@@ -734,12 +727,6 @@ body {
     background: #f8fafc;
     border-radius: 12px;
     border: 1px solid #e2e8f0;
-    transition: var(--transition);
-}
-
-.seller-price-row:hover {
-    border-color: #cbd5e1;
-    background: #f1f5f9;
 }
 
 .seller-price-row .form-select,
@@ -765,7 +752,6 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: var(--transition);
 }
 
 .seller-price-row .btn-remove:hover {
@@ -817,12 +803,7 @@ body {
     gap: 10px;
     padding: 12px 12px;
     border-bottom: 1px solid #e2e8f0;
-    transition: var(--transition);
     flex-wrap: wrap;
-}
-
-.shopping-item:hover {
-    background: #f8fafc;
 }
 
 .shopping-item.done {
@@ -858,12 +839,11 @@ body {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
     border: 1px solid #eef2f7;
     margin-bottom: 0.7rem;
-    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    transition: transform 0.12s ease;
 }
 
 .mobile-card:active {
     transform: scale(0.985);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .mobile-card-header {
@@ -924,8 +904,8 @@ body {
    ═══════════════════════════════════════════ */
 .mobile-fab {
     position: fixed;
-    bottom: calc(20px + var(--mobile-bottom-nav-h) + var(--safe-bottom));
-    right: calc(20px + var(--safe-right));
+    bottom: calc(20px + var(--mobile-bottom-nav-h) + var(--sab));
+    right: calc(16px + var(--sar));
     width: 58px;
     height: 58px;
     border-radius: 50%;
@@ -939,13 +919,11 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: var(--transition);
-    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s ease;
 }
 
 .mobile-fab:active {
     transform: scale(0.9);
-    box-shadow: 0 3px 12px rgba(16, 185, 129, 0.5);
 }
 
 /* ═══════════════════════════════════════════
@@ -965,7 +943,7 @@ body {
 }
 
 /* ═══════════════════════════════════════════
-   RESPONSIVE — TABLET
+   TABLET
    ═══════════════════════════════════════════ */
 @media (max-width: 991.98px) {
     .main-content {
@@ -978,11 +956,11 @@ body {
 }
 
 /* ═══════════════════════════════════════════
-   RESPONSIVE — MOBILE (Android app feel)
+   MOBILE — ANDROID APP FEEL
    ═══════════════════════════════════════════ */
 @media (max-width: 767.98px) {
 
-    /* Sidebar → drawer */
+    /* Sidebar drawer */
     .sidebar {
         transform: translateX(-100%);
         width: 280px;
@@ -999,7 +977,7 @@ body {
         justify-content: center;
     }
 
-    /* Show mobile topbar & bottom nav */
+    /* Show top & bottom nav */
     .mobile-topbar {
         display: flex;
     }
@@ -1008,21 +986,24 @@ body {
         display: flex;
     }
 
-    /* Main content */
+    /* Main content — safe padding around fixed bars */
     .main-content {
         margin-left: 0;
         width: 100%;
-        padding: 1rem 0.9rem;
-        padding-top: calc(var(--mobile-topbar-h) + var(--safe-top) + 0.9rem);
-        padding-bottom: calc(var(--mobile-bottom-nav-h) + var(--safe-bottom) + 1.2rem);
+        padding: 0.9rem 0.9rem;
+        padding-top: calc(var(--mobile-topbar-h) + var(--sat) + 0.9rem);
+        padding-bottom: calc(var(--mobile-bottom-nav-h) + var(--sab) + 1.2rem);
+        padding-left: calc(0.9rem + var(--sal));
+        padding-right: calc(0.9rem + var(--sar));
+        min-height: 100dvh;
     }
 
-    /* Hide desktop-style topbar on mobile (mobile-topbar replaces it) */
+    /* Hide desktop top bar on mobile */
     .top-bar {
         display: none;
     }
 
-    /* Page header (in-page) */
+    /* Page header */
     .page-header {
         flex-direction: column;
         align-items: stretch;
@@ -1084,13 +1065,13 @@ body {
         padding: 0.95rem 1rem;
     }
 
-    /* Bootstrap gutters tighter */
+    /* Row gutters tighter */
     .row.g-3 {
         --bs-gutter-x: 0.6rem;
         --bs-gutter-y: 0.6rem;
     }
 
-    /* Modals — Android bottom-sheet-ish */
+    /* Modals */
     .modal-dialog {
         margin: 0.5rem;
     }
@@ -1114,7 +1095,7 @@ body {
 
     .modal-custom .modal-footer {
         padding: 0.75rem 1.1rem;
-        padding-bottom: calc(0.75rem + var(--safe-bottom));
+        padding-bottom: calc(0.75rem + var(--sab));
         gap: 0.5rem;
     }
 
@@ -1122,11 +1103,11 @@ body {
         flex: 1;
     }
 
-    /* Forms — big tap targets & prevent iOS zoom */
+    /* Forms — big tap, no zoom */
     .form-control,
     .form-select {
         min-height: 46px;
-        font-size: 16px;
+        font-size: 16px !important;
         border-radius: 12px;
     }
 
@@ -1194,11 +1175,18 @@ body {
         justify-self: end;
     }
 
-    /* Toasts above bottom-nav */
+    /* Toast positioning */
     .toast-container {
-        bottom: calc(var(--mobile-bottom-nav-h) + var(--safe-bottom) + 12px) !important;
         top: auto !important;
+        bottom: calc(var(--mobile-bottom-nav-h) + var(--sab) + 12px) !important;
+        left: 8px !important;
+        right: 8px !important;
         padding: 0.5rem !important;
+    }
+
+    .toast-container .toast {
+        width: 100%;
+        margin: 0 auto 6px;
     }
 
     /* Empty state */
@@ -1213,8 +1201,8 @@ body {
 
 @media (max-width: 400px) {
     .main-content {
-        padding-left: 0.7rem;
-        padding-right: 0.7rem;
+        padding-left: calc(0.7rem + var(--sal));
+        padding-right: calc(0.7rem + var(--sar));
     }
 
     .filters-bar {
@@ -1238,14 +1226,13 @@ body {
     }
 }
 
-/* Scroll behavior */
+/* Scroll */
 .sidebar,
 .alert-list,
 .main-content {
     -webkit-overflow-scrolling: touch;
 }
 
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
 
     *,
