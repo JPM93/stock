@@ -1,0 +1,260 @@
+/* ═══════════════════════════════════════════
+   GharSeva — mobile.css
+   style.css ke BAAD load karein. Sirf mobile (<768px) par asar.
+   ═══════════════════════════════════════════ */
+
+:root {
+    --app-h: 100vh;
+}
+
+@supports (height: 100dvh) {
+    :root {
+        --app-h: 100dvh;
+    }
+}
+
+@media (max-width: 767.98px) {
+
+    html, body {
+        overscroll-behavior-y: none;
+    }
+
+    button, .btn, .nav-link, .bottom-nav-item, select, input {
+        touch-action: manipulation;
+    }
+
+    /* Dead search button hide (abhi koi function nahi) */
+    #mobileSearchBtn {
+        visibility: hidden;
+    }
+
+    /* ── Sticky filters: scroll karte waqt bhi search/filter dikhe ── */
+    .filters-bar {
+        position: sticky;
+        top: calc(var(--mobile-topbar-h) + var(--sat));
+        z-index: 20;
+        background: #f1f5f9;
+        padding: 0.45rem 0 0.5rem;
+        margin-left: -0.2rem;
+        margin-right: -0.2rem;
+        padding-left: 0.2rem;
+        padding-right: 0.2rem;
+    }
+
+    /* ── Modals → Bottom sheet (Android jaisa) ── */
+    .modal-custom .modal-dialog {
+        margin: 0;
+        max-width: 100%;
+        height: 100%;
+        min-height: 100%;
+        display: flex;
+        align-items: flex-end;
+    }
+
+    .modal-custom .modal-content {
+        width: 100%;
+        max-height: 92vh;
+        max-height: 92dvh;
+        border-radius: 24px 24px 0 0;
+    }
+
+    .modal-custom.fade .modal-dialog {
+        transform: translateY(100%);
+        transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .modal-custom.show .modal-dialog {
+        transform: none;
+    }
+
+    .modal-custom .modal-header {
+        position: relative;
+        padding-top: 1.25rem;
+        border-radius: 24px 24px 0 0;
+    }
+
+    /* Drag-handle */
+    .modal-custom .modal-header::before {
+        content: '';
+        position: absolute;
+        top: 7px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 38px;
+        height: 4px;
+        border-radius: 4px;
+        background: #cbd5e1;
+    }
+
+    .modal-custom .modal-body {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+
+    .modal-custom .modal-footer {
+        position: sticky;
+        bottom: 0;
+        background: #fff;
+    }
+
+    /* Modal khulne par FAB chhupa do */
+    body.modal-open .mobile-fab {
+        display: none !important;
+    }
+
+    /* ── Touch targets ── */
+    .mobile-card-actions .btn {
+        min-height: 46px;
+        font-size: 0.95rem;
+    }
+
+    .mobile-card-actions .btn i {
+        font-size: 1rem;
+    }
+
+    .shopping-item .form-check-input {
+        width: 26px;
+        height: 26px;
+    }
+
+    .master-card .btn-sm {
+        min-width: 42px;
+    }
+
+    /* ── Shopping list: clean layout ── */
+    .shopping-item {
+        display: grid;
+        grid-template-columns: 30px 1fr auto;
+        grid-template-areas:
+            "check info total"
+            "check info actions";
+        gap: 4px 10px;
+        align-items: start;
+        padding: 12px 4px;
+    }
+
+    .shopping-item > .form-check-input {
+        grid-area: check;
+    }
+
+    .shopping-item > div:nth-child(2) {
+        grid-area: info;
+    }
+
+    .shopping-item > .text-end {
+        grid-area: total;
+    }
+
+    .shopping-item > .d-flex.gap-1 {
+        grid-area: actions;
+        justify-self: end;
+    }
+
+    /* ── Dashboard ── */
+    .stat-card {
+        padding: 0.8rem 0.85rem;
+    }
+
+    .stat-card .stat-value {
+        font-size: 1.25rem;
+        word-break: break-word;
+    }
+
+    .alert-list {
+        max-height: 240px;
+    }
+
+    .table-responsive {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table thead th {
+        font-size: 0.7rem;
+    }
+
+    .table > :not(caption) > * > * {
+        padding: 0.5rem 0.4rem;
+        font-size: 0.82rem;
+    }
+
+    /* ── Bottom nav: thoda premium feel ── */
+    .bottom-nav {
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.96);
+    }
+
+    .bottom-nav-item {
+        min-height: 56px;
+    }
+
+    .bottom-nav-item.active i {
+        background: rgba(16, 185, 129, 0.14);
+        border-radius: 14px;
+        padding: 4px 14px;
+        margin-top: -4px;
+        transform: none;
+    }
+
+    .bottom-nav-item.active::before {
+        display: none;
+    }
+
+    /* ── Drawer ── */
+    .sidebar {
+        height: var(--app-h);
+        max-width: 85vw;
+    }
+
+    .sidebar-nav .nav-link {
+        min-height: 50px;
+        font-size: 0.95rem;
+    }
+
+    /* ── Seller price row: remove button ko compact rakho ── */
+    .seller-price-row .sp-remove {
+        width: 100%;
+        height: 36px;
+        justify-content: center;
+        background: #fff1f2;
+        border-radius: 10px;
+    }
+
+    /* ── Settings page cards full width + spacing ── */
+    #page-settings .card-custom .btn {
+        min-height: 46px;
+    }
+
+    .google-drive-btn {
+        min-height: 46px;
+    }
+
+    /* ── Toast: bottom nav ke upar, thoda bada ── */
+    .toast-container .toast {
+        border-radius: 14px;
+        font-size: 0.9rem;
+    }
+}
+
+/* Chhote phones */
+@media (max-width: 360px) {
+    .bottom-nav-item span {
+        font-size: 0.6rem;
+    }
+
+    .page-header h5 {
+        font-size: 0.95rem;
+    }
+}
+
+/* Landscape phone: bottom nav thoda patla */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+    :root {
+        --mobile-bottom-nav-h: 48px;
+        --mobile-topbar-h: 48px;
+    }
+
+    .bottom-nav-item span {
+        display: none;
+    }
+}
