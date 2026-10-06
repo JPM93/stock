@@ -2,9 +2,6 @@
     let currentPage = 'dashboard';
     const PREFIX = 'gharseva_';
 
-    // Track last sidebar-only page
-    let sidebarPage = 'dashboard';
-
     // ─── Helpers ─────────────────────────────────────
     function showToast(msg, type = 'info') {
         const c = document.querySelector('.toast-container'); if (!c) return;
@@ -1608,6 +1605,59 @@
 
     // ═══ Init ═══
     function init() {
+        // ═══ MIUI / Android viewport fix ═══
+        function setAppViewport() {
+            // Real visual viewport height
+            // const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            // document.documentElement.style.setProperty('--app-h', vh + 'px');
+
+            const vh = Math.max(
+                window.visualViewport ? window.visualViewport.height : 0,
+                window.innerHeight
+            );
+            document.documentElement.style.setProperty('--app-h', vh + 'px');
+
+            // Android device bottom safe area detection
+            // MIUI gesture bar ~ 24-32px; iOS returns via env()
+            const isAndroid = /Android/i.test(navigator.userAgent);
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+            let sab = 0;
+            if (isIOS) {
+                // env() works on iOS — read via CSS
+                const tempEl = document.createElement('div');
+                tempEl.style.cssText = 'position:fixed;bottom:0;height:env(safe-area-inset-bottom,0);';
+                document.body.appendChild(tempEl);
+                sab = tempEl.getBoundingClientRect().height || 0;
+                document.body.removeChild(tempEl);
+            } else if (isAndroid) {
+                // MIUI Android: env() returns 0 → detect via innerHeight vs screen
+                const ratio = (window.screen.height - window.innerHeight) / window.screen.height;
+                // If difference > ~8% → gesture nav present
+                if (ratio > 0.05 && ratio < 0.15) {
+                    sab = 22; // MIUI gesture bar approx
+                }
+            }
+            document.documentElement.style.setProperty('--sab', sab + 'px');
+
+            // Landscape / notch left-right (rare on phones)
+            const sal = isIOS ? 0 : Math.max(0, (window.outerWidth - window.innerWidth) / 2);
+            if (sal > 0 && window.innerWidth > window.innerHeight) {
+                document.documentElement.style.setProperty('--sal', sal + 'px');
+                document.documentElement.style.setProperty('--sar', sal + 'px');
+            }
+        }
+
+        setAppViewport();
+        // window.addEventListener('resize', setAppViewport);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(setAppViewport, 250);
+        });
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', setAppViewport);
+        }
+
         document.getElementById('currentDateDisplay').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
         document.querySelectorAll('.sidebar-nav .nav-link').forEach(l => l.addEventListener('click', function () {
             const page = this.getAttribute('data-page');
