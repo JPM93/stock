@@ -2,6 +2,9 @@
     let currentPage = 'dashboard';
     const PREFIX = 'gharseva_';
 
+    // Track last sidebar-only page
+    let sidebarPage = 'dashboard';
+
     // ─── Helpers ─────────────────────────────────────
     function showToast(msg, type = 'info') {
         const c = document.querySelector('.toast-container'); if (!c) return;
@@ -105,6 +108,27 @@
 
     // ─── Navigation ──────────────────────────────────
     function navigateTo(page) {
+        // Update mobile topbar title
+        const mobileTitle = document.getElementById('mobileBrandTitle');
+        const mobileTitles = {
+            dashboard: '📊 Dashboard', stock: '📦 Stock', items: '🏷️ Items',
+            brands: '©️ Brands', sellers: '🏪 Sellers', categories: '📚 Categories',
+            storages: '🏠 Storages', shopping: '🛒 Shopping List', settings: '⚙️ Settings'
+        };
+        if (mobileTitle) mobileTitle.textContent = mobileTitles[page] || '🛒 GharSeva';
+
+        // Update bottom nav active state
+        const bottomNavMap = { dashboard: 'dashboard', stock: 'stock', items: 'items', shopping: 'shopping' };
+        document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
+        if (bottomNavMap[page]) {
+            const btn = document.querySelector(`.bottom-nav-item[data-nav="${bottomNavMap[page]}"]`);
+            if (btn) btn.classList.add('active');
+        } else {
+            // Page not in bottom nav → highlight "More"
+            const moreBtn = document.querySelector('.bottom-nav-item[data-nav="more"]');
+            if (moreBtn) moreBtn.classList.add('active');
+        }
+
         currentPage = page;
         document.querySelectorAll('.section-page').forEach(el => el.classList.remove('active'));
         const pEl = document.getElementById('page-' + page); if (pEl) pEl.classList.add('active');
@@ -162,6 +186,20 @@
         document.getElementById('stockBadgeCount').textContent = lowStock + outOfStock;
         const shoppingActive = getShopping().filter(s => !s.done).length;
         document.getElementById('shoppingBadgeCount').textContent = shoppingActive;
+
+        // Update bottom nav badges
+        const bnStock = document.getElementById('bnStockBadge');
+        const bnShopping = document.getElementById('bnShoppingBadge');
+        if (bnStock) {
+            const c = lowStock + outOfStock;
+            bnStock.textContent = c;
+            bnStock.style.display = c > 0 ? 'inline-block' : 'none';
+        }
+        if (bnShopping) {
+            const c = shoppingActive;
+            bnShopping.textContent = c;
+            bnShopping.style.display = c > 0 ? 'inline-block' : 'none';
+        }
     }
 
     // ─── Dashboard ───────────────────────────────────
@@ -1591,6 +1629,24 @@
                 if (fab) fab.style.display = (isMobile() && ['stock', 'items', 'brands', 'sellers', 'categories', 'storages'].includes(currentPage)) ? 'flex' : 'none';
             }, 200);
         });
+
+        // Bottom navigation wiring
+        document.querySelectorAll('.bottom-nav-item').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const nav = this.getAttribute('data-nav');
+                if (nav === 'more') {
+                    // Open sidebar drawer as "More" menu
+                    openSidebar();
+                    // Highlight current page in sidebar
+                    document.querySelectorAll('.sidebar-nav .nav-link').forEach(el => el.classList.remove('active'));
+                    const cur = document.querySelector(`.sidebar-nav [data-page="${currentPage}"]`);
+                    if (cur) cur.classList.add('active');
+                } else {
+                    navigateTo(nav);
+                }
+            });
+        });
+
         attachSearchListeners();
         refreshDropdowns();
         navigateTo('dashboard');
