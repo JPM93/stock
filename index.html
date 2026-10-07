@@ -210,10 +210,21 @@
 
             <!-- Item Master -->
             <div class="section-page" id="page-items">
-                <div class="page-header">
+                <!-- <div class="page-header">
                     <h5 class="fw-bold mb-0">🏷️ Item Master</h5>
                     <button class="btn btn-primary-custom btn-sm" onclick="openItemModal()"><i
                             class="fas fa-plus me-1"></i>Add Item</button>
+                </div> -->
+                <div class="page-header">
+                    <h5 class="fw-bold mb-0">🏷️ Item Master</h5>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-outline-custom btn-sm" onclick="openItemImportModal()">
+                            <i class="fas fa-file-csv me-1"></i>Import CSV
+                        </button>
+                        <button class="btn btn-primary-custom btn-sm" onclick="openItemModal()">
+                            <i class="fas fa-plus me-1"></i>Add Item
+                        </button>
+                    </div>
                 </div>
                 <div class="filters-bar">
                     <input type="text" class="form-control form-control-sm" id="itemSearch"
@@ -562,6 +573,56 @@
                 <div class="modal-footer"><button class="btn btn-outline-custom"
                         data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
                         onclick="saveItem()">💾 Save</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════ CSV IMPORT MODAL ══════════ -->
+    <div class="modal fade modal-custom" id="itemImportModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Import Items from CSV</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="alert alert-info small mb-3" style="border-radius:12px;">
+                        <strong><i class="fas fa-circle-info me-1"></i>CSV Format:</strong>
+                        <div
+                            style="font-family:monospace;font-size:0.75rem;margin-top:6px;padding:8px;background:#fff;border-radius:8px;overflow-x:auto;white-space:nowrap;">
+                            brand,itemName,category,size,unit,mrp,price,minAlert,notes
+                        </div>
+                        <ul class="mb-0 mt-2 ps-3" style="font-size:0.78rem;">
+                            <li><strong>brand</strong> &amp; <strong>category</strong> ka naam Brand/Category Master se
+                                match hoga</li>
+                            <li>Match na hone par us row ko skip kar diya jayega</li>
+                            <li>Duplicate items skip honge (same brand + item + size + unit)</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">CSV File select karo</label>
+                        <input type="file" class="form-control" id="itemCsvFile" accept=".csv,text/csv">
+                    </div>
+
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+                        <button class="btn btn-sm btn-outline-custom" onclick="downloadCsvTemplate()">
+                            <i class="fas fa-download me-1"></i>Download Template
+                        </button>
+                        <button class="btn btn-sm btn-outline-custom" onclick="downloadCsvWithData()">
+                            <i class="fas fa-file-export me-1"></i>Export Existing Items
+                        </button>
+                    </div>
+
+                    <div id="csvPreviewContainer"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary-custom" id="csvImportBtn" onclick="confirmCsvImport()" disabled>
+                        <i class="fas fa-upload me-1"></i>Import
+                    </button>
+                </div>
             </div>
         </div>
     </div>

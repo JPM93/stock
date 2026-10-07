@@ -1603,6 +1603,289 @@
         });
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // ═══ CSV IMPORT / EXPORT FOR ITEMS ═══
+    // ═══════════════════════════════════════════════════════════
+
+    let __csvParsedRows = null;
+
+    // Simple CSV parser (handles quotes & commas)
+    function parseCSV(text) {
+        const rows = [];
+        let cur = '', row = [], inQuotes = false;
+        // Normalize line endings
+        text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (inQuotes) {
+                if (ch === '"') {
+                    if (text[i + 1] === '"') { cur += '"'; i++; }
+                    else inQuotes = false;
+                } else cur += ch;
+            } else {
+                if (ch === '"') inQuotes = true;
+                else if (ch === ',') { row.push(cur); cur = ''; }
+                else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+                else cur += ch;
+            }
+        }
+        if (cur.length || row.length) { row.push(cur); rows.push(row); }
+        // Filter blank lines
+        return rows.filter(r => r.some(c => String(c).trim() !== ''));
+    }
+
+    // Escape a value for CSV output
+    function csvEsc(v) {
+        const s = v === null || v === undefined ? '' : String(v);
+        if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+        return s;
+    }
+
+    // Build a CSV string from items
+    function itemsToCSV(items) {
+        const header = ['brand', 'itemName', 'category', 'size', 'unit', 'mrp', 'price', 'minAlert', 'notes'];
+        const lines = [header.join(',')];
+        items.forEach(i => {
+            const brand = getBrandById(i.brandId);
+            const cat = getCategoryById(i.categoryId);
+            lines.push([
+                csvEsc(brand ? brand.name : ''),
+                csvEsc(i.itemName || ''),
+                csvEsc(cat ? cat.name : ''),
+                csvEsc(i.size),
+                csvEsc(i.unit),
+                csvEsc(i.mrp),
+                csvEsc(i.price),
+                csvEsc(i.minAlert),
+                csvEsc(i.notes || '')
+            ].join(','));
+        });
+        return lines.join('\n');
+    }
+
+    // Trigger a download
+    function downloadText(filename, text) {
+        const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
+    window.openItemImportModal = function () {
+        const fileInput = document.getElementById('itemCsvFile');
+        if (fileInput) fileInput.value = '';
+        const prev = document.getElementById('csvPreviewContainer');
+        if (prev) prev.innerHTML = '';
+        const btn = document.getElementById('csvImportBtn');
+        if (btn) btn.disabled = true;
+        __csvParsedRows = null;
+        new bootstrap.Modal(document.getElementById('itemImportModal')).show();
+    };
+
+    window.downloadCsvTemplate = function () {
+        const sample = [
+            'brand,itemName,category,size,unit,mrp,price,minAlert,notes',
+            'Tata,Toor Dal,Kathod,1,kg,220,180,2,',
+            'MDH,Turmeric Powder,Masala,100,gm,50,45,1,',
+            'Amul,Milk,Dairy,1,l,66,60,3,'
+        ].join('\n');
+        downloadText('gharseva_items_template.csv', sample);
+        showToast('Template downloaded!', 'success');
+    };
+
+    window.downloadCsvWithData = function () {
+        const items = getItems();
+        if (!items.length) { showToast('No items to export', 'warning'); return; }
+        const csv = itemsToCSV(items);
+        downloadText('gharseva_items_' + new Date().toISOString().split('T')[0] + '.csv', csv);
+        showToast('Items exported!', 'success');
+    };
+
+    // When user selects a file
+    document.addEventListener('change', function (e) {
+        if (!e.target || e.target.id !== 'itemCsvFile') return;
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+            try {
+                const text = String(ev.target.result || '').replace(/^\uFEFF/, ''); // strip BOM
+                const rows = parseCSV(text);
+                if (rows.length < 2) { showToast('CSV empty or missing rows', 'error'); return; }
+
+                const header = rows[0].map(h => String(h).trim().toLowerCase());
+                const required = ['brand', 'itemname', 'category', 'size', 'unit', 'mrp', 'price'];
+                const idx = {};
+                header.forEach((h, i) => { idx[h] = i; });
+                const missing = required.filter(r => idx[r] === undefined);
+                if (missing.length) {
+                    showToast('Missing columns: ' + missing.join(', '), 'error');
+                    return;
+                }
+
+                const brands = getBrands();
+                const cats = getCategories();
+                const existing = getItems();
+
+                const parsed = [];
+                const errors = [];
+                const skippedDup = [];
+
+                for (let r = 1; r < rows.length; r++) {
+                    const row = rows[r];
+                    const brandName = String(row[idx['brand']] || '').trim();
+                    const itemName = String(row[idx['itemname']] || '').trim();
+                    const catName = String(row[idx['category']] || '').trim();
+                    const size = parseFloat(row[idx['size']]);
+                    const unit = String(row[idx['unit']] || '').trim().toLowerCase();
+                    const mrp = parseFloat(row[idx['mrp']]);
+                    const price = parseFloat(row[idx['price']]);
+                    const minAlert = idx['minalert'] !== undefined ? parseFloat(row[idx['minalert']]) : 0;
+                    const notes = idx['notes'] !== undefined ? String(row[idx['notes']] || '').trim() : '';
+
+                    if (!brandName || !itemName || !catName) {
+                        errors.push(`Row ${r + 1}: brand/itemName/category missing`);
+                        continue;
+                    }
+                    const brand = brands.find(b => b.name.toLowerCase() === brandName.toLowerCase());
+                    if (!brand) {
+                        errors.push(`Row ${r + 1}: Brand "${brandName}" not found`);
+                        continue;
+                    }
+                    const cat = cats.find(c => c.name.toLowerCase() === catName.toLowerCase());
+                    if (!cat) {
+                        errors.push(`Row ${r + 1}: Category "${catName}" not found`);
+                        continue;
+                    }
+                    if (!size || size <= 0) { errors.push(`Row ${r + 1}: invalid size`); continue; }
+                    if (isNaN(mrp) || mrp < 0) { errors.push(`Row ${r + 1}: invalid mrp`); continue; }
+                    if (isNaN(price) || price < 0) { errors.push(`Row ${r + 1}: invalid price`); continue; }
+                    if (!unit) { errors.push(`Row ${r + 1}: unit missing`); continue; }
+
+                    // Duplicate check: same brand + itemName (case-insensitive) + size + unit
+                    const dup = existing.find(i =>
+                        i.brandId === brand.id &&
+                        (i.itemName || '').toLowerCase() === itemName.toLowerCase() &&
+                        Number(i.size) === Number(size) &&
+                        (i.unit || '').toLowerCase() === unit
+                    );
+                    if (dup) { skippedDup.push(`Row ${r + 1}: ${brandName} ${itemName} (${size}${unit}) already exists`); continue; }
+
+                    parsed.push({
+                        _row: r + 1,
+                        brandId: brand.id,
+                        categoryId: cat.id,
+                        itemName,
+                        size,
+                        unit,
+                        mrp,
+                        price,
+                        minAlert: isNaN(minAlert) ? 0 : minAlert,
+                        notes,
+                        sellers: []
+                    });
+                }
+
+                __csvParsedRows = parsed;
+                renderCsvPreview(parsed, errors, skippedDup);
+            } catch (err) {
+                console.error(err);
+                showToast('Could not parse CSV', 'error');
+            }
+        };
+        reader.readAsText(file);
+    });
+
+    function renderCsvPreview(parsed, errors, skippedDup) {
+        const c = document.getElementById('csvPreviewContainer');
+        if (!c) return;
+        let html = '';
+
+        html += `<div class="d-flex gap-2 flex-wrap mb-2">
+            <span class="badge-soft green">✅ Ready: ${parsed.length}</span>
+            ${errors.length ? `<span class="badge-soft red">❌ Errors: ${errors.length}</span>` : ''}
+            ${skippedDup.length ? `<span class="badge-soft orange">⚠️ Skipped: ${skippedDup.length}</span>` : ''}
+        </div>`;
+
+        if (parsed.length) {
+            html += `<div style="max-height:220px;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;">
+                <table class="table table-sm mb-0" style="font-size:0.8rem;">
+                    <thead style="position:sticky;top:0;background:#f8fafc;z-index:1;">
+                        <tr>
+                            <th>Brand</th><th>Item</th><th>Cat</th>
+                            <th>Size</th><th>MRP</th><th>Price</th><th>Min</th>
+                        </tr>
+                    </thead><tbody>`;
+            parsed.forEach(p => {
+                const b = getBrandById(p.brandId);
+                const cat = getCategoryById(p.categoryId);
+                html += `<tr>
+                    <td>${escapeHtml(b ? b.name : '')}</td>
+                    <td>${escapeHtml(p.itemName)}</td>
+                    <td>${escapeHtml(cat ? cat.name : '')}</td>
+                    <td>${p.size}${escapeHtml(p.unit)}</td>
+                    <td>${formatCurrency(p.mrp)}</td>
+                    <td>${formatCurrency(p.price)}</td>
+                    <td>${p.minAlert}</td>
+                </tr>`;
+            });
+            html += `</tbody></table></div>`;
+        }
+
+        if (errors.length) {
+            html += `<details class="mt-2" style="font-size:0.8rem;">
+                <summary class="fw-semibold text-danger">Show errors (${errors.length})</summary>
+                <ul class="mb-0 ps-3">${errors.slice(0, 50).map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
+            </details>`;
+        }
+        if (skippedDup.length) {
+            html += `<details class="mt-2" style="font-size:0.8rem;">
+                <summary class="fw-semibold text-warning">Show skipped duplicates (${skippedDup.length})</summary>
+                <ul class="mb-0 ps-3">${skippedDup.slice(0, 50).map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
+            </details>`;
+        }
+
+        c.innerHTML = html;
+
+        const btn = document.getElementById('csvImportBtn');
+        if (btn) btn.disabled = parsed.length === 0;
+    }
+
+    window.confirmCsvImport = function () {
+        if (!__csvParsedRows || !__csvParsedRows.length) {
+            showToast('Nothing to import', 'warning'); return;
+        }
+        const items = getItems();
+        const now = new Date().toISOString();
+        let added = 0;
+        __csvParsedRows.forEach(p => {
+            items.push({
+                id: uid('itm'),
+                brandId: p.brandId,
+                itemName: p.itemName,
+                categoryId: p.categoryId,
+                size: p.size,
+                unit: p.unit,
+                mrp: p.mrp,
+                price: p.price,
+                minAlert: p.minAlert,
+                notes: p.notes || '',
+                sellers: [],
+                createdAt: now,
+                updatedAt: now
+            });
+            added++;
+        });
+        saveItems(items);
+        bootstrap.Modal.getInstance(document.getElementById('itemImportModal')).hide();
+        showToast(`${added} item(s) imported!`, 'success');
+        refreshItems(); refreshDropdowns(); refreshDashboard(); updateBadges();
+        __csvParsedRows = null;
+    };
+
     // ═══ Init ═══
     function init() {
         // ═══ MIUI / Android viewport fix ═══
