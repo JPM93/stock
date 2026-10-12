@@ -21,6 +21,51 @@
     function formatCurrency(n) { return '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
     function initials(name) { if (!name) return '?'; return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase(); }
     function isMobile() { return window.innerWidth < 768; }
+    function todayISO() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function safeImg(src) { return (typeof src === 'string' && /^data:image\//.test(src)) ? src.replace(/"/g, '') : ''; }
+    function thumbHtml(item, size) {
+        const sz = size || 'md';
+        const src = item ? safeImg(item.image) : '';
+        if (src) return `<img class="item-thumb ${sz}" src="${src}" alt="" loading="lazy">`;
+        return `<span class="item-thumb item-thumb-ph ${sz}"><i class="fas fa-image"></i></span>`;
+    }
+    // Stock purchase rate -> Item Master "Base Price" (latest buy). Purani date wali entry newer rate ko override nahi karegi.
+    function applyBuyRate(items, itemId, rate, dateStr) {
+        const it = items.find(x => x.id === itemId); if (!it) return false;
+        const d = dateStr || todayISO();
+        if (it.lastBuyDate && d < it.lastBuyDate) return false;
+        it.price = rate; it.lastBuyDate = d; it.updatedAt = new Date().toISOString();
+        return true;
+    }
+    // Image -> 256x256 JPEG (white background, no distortion), low quality base64
+    function resizeImageFile(file, size, quality) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onerror = reject;
+            reader.onload = () => {
+                const img = new Image();
+                img.onerror = reject;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = size; canvas.height = size;
+                    const c = canvas.getContext('2d');
+                    c.fillStyle = '#ffffff'; c.fillRect(0, 0, size, size);
+                    c.imageSmoothingQuality = 'high';
+                    const scale = Math.min(size / img.width, size / img.height);
+                    const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+                    c.drawImage(img, Math.round((size - w) / 2), Math.round((size - h) / 2), w, h);
+                    let q = quality, out = canvas.toDataURL('image/jpeg', q);
+                    while (out.length > 28000 && q > 0.4) { q = Math.round((q - 0.1) * 10) / 10; out = canvas.toDataURL('image/jpeg', q); }
+                    resolve(out);
+                };
+                img.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
 
     // ─── Data Accessors ──────────────────────────────
     function getStorages() { return load('storages', []); }
@@ -30,19 +75,19 @@
     function getItems() { return load('items', []); }
     function getStock() { return load('stock', []); }
     function getShopping() { return load('shopping', []); }
-    function saveStorages(v) { save('storages', v); }
-    function saveCategories(v) { save('categories', v); }
-    function saveBrands(v) { save('brands', v); }
-    function saveSellers(v) { save('sellers', v); }
-    function saveItems(v) { save('items', v); }
-    function saveStock(v) { save('stock', v); }
-    function saveShopping(v) { save('shopping', v); }
+    function saveStorages(v) { return save('storages', v); }
+    function saveCategories(v) { return save('categories', v); }
+    function saveBrands(v) { return save('brands', v); }
+    function saveSellers(v) { return save('sellers', v); }
+    function saveItems(v) { __itemsCache = null; return save('items', v); }
+    function saveStock(v) { return save('stock', v); }
+    function saveShopping(v) { return save('shopping', v); }
 
     function getAllData() {
         return {
             storages: getStorages(), categories: getCategories(), brands: getBrands(),
             sellers: getSellers(), items: getItems(), stock: getStock(), shopping: getShopping(),
-            exportDate: new Date().toISOString(), version: '1.3'
+            exportDate: new Date().toISOString(), version: '1.4'
         };
     }
     function restoreData(d) {
@@ -58,7 +103,12 @@
     function getCategoryById(id) { return getCategories().find(c => c.id === id); }
     function getBrandById(id) { return getBrands().find(b => b.id === id); }
     function getSellerById(id) { return getSellers().find(s => s.id === id); }
-    function getItemById(id) { return getItems().find(i => i.id === id); }
+    let __itemsCache = null;
+    function getItemById(id) {
+        // Photos (base64) items JSON ko bhari bana dete hain — isliye map cache karte hain
+        if (!__itemsCache) { __itemsCache = new Map(); getItems().forEach(i => __itemsCache.set(i.id, i)); }
+        return __itemsCache.get(id);
+    }
 
     function getMinAlert(item) { return item ? (Number(item.minAlert) || 0) : 1; }
     function getSellingPrice(item) {
@@ -688,11 +738,11 @@
             const bestDiscount = best ? getDiscountPct(mrp, best.price) : 0;
             return `<tr>
                 <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
-                <td><strong>${escapeHtml(i.itemName)}</strong></td>
+                <td><div class="d-flex align-items-center gap-2">${thumbHtml(i, 'md')}<strong>${escapeHtml(i.itemName)}</strong></div></td>
                 <td>${cat ? `<span class="badge-soft blue">${escapeHtml(cat.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td>${i.size} <span class="badge-soft gray">${escapeHtml(i.unit)}</span></td>
                 <td>${mrp ? formatCurrency(mrp) : '<span class="text-muted">—</span>'}</td>
-                <td>${basePrice ? formatCurrency(basePrice) : '<span class="text-muted">—</span>'}</td>
+                <td>${basePrice ? formatCurrency(basePrice) : '<span class="text-muted">—</span>'}${i.lastBuyDate ? `<br><small class="text-muted">last buy ${formatDate(i.lastBuyDate)}</small>` : ''}</td>
                 <td>${bestSeller ? `<span class="seller-chip best"><span class="seller-name">${escapeHtml(bestSeller.name)}</span> <span class="seller-price">${formatCurrency(best.price)}</span>${bestDiscount ? ` <span class="seller-disc">${bestDiscount}%</span>` : ''}</span>` : '<span class="text-muted small">No sellers</span>'}</td>
                 <td><span class="badge-soft orange">≤ ${getMinAlert(i)}</span></td>
                 <td>
@@ -722,6 +772,7 @@
             }).join('');
             return `<div class="mobile-card">
                 <div class="mobile-card-header">
+                    ${thumbHtml(i, 'lg')}
                     <div style="min-width:0;flex:1;">
                         <div class="mobile-card-title">${escapeHtml(i.itemName)}</div>
                         <div class="mobile-card-sub">${i.size} ${escapeHtml(i.unit)} ${cat ? '· ' + escapeHtml(cat.name) : ''}</div>
@@ -729,7 +780,7 @@
                     ${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : ''}
                 </div>
                 <div class="mobile-card-row"><span class="label">MRP</span><span>${mrp ? formatCurrency(mrp) : '—'}</span></div>
-                <div class="mobile-card-row"><span class="label">Base Price</span><span><strong>${basePrice ? formatCurrency(basePrice) : '—'}</strong></span></div>
+                <div class="mobile-card-row"><span class="label">Base Price</span><span><strong>${basePrice ? formatCurrency(basePrice) : '—'}</strong>${i.lastBuyDate ? ` <small class="text-muted">(${formatDate(i.lastBuyDate)})</small>` : ''}</span></div>
                 <div class="mobile-card-row"><span class="label">Min Alert</span><span class="badge-soft orange">≤ ${getMinAlert(i)}</span></div>
                 ${sellerChips ? `<div style="margin-top:6px;"><small class="text-muted d-block mb-1">Sellers:</small>${sellerChips}</div>` : ''}
                 ${i.notes ? `<div class="mobile-card-row" style="margin-top:6px;"><span class="label">Notes</span><span>${escapeHtml(i.notes)}</span></div>` : ''}
@@ -755,6 +806,7 @@
         populateDropdown('itemBrand', getBrands().map(b => ({ id: b.id, label: b.name })), false);
         populateDropdown('itemCategory', getCategories().map(c => ({ id: c.id, label: c.name })), false);
         document.getElementById('sellerPricingContainer').innerHTML = '';
+        setItemImage('');
 
         if (mode === 'edit' && id) {
             const i = getItemById(id); if (!i) return;
@@ -769,10 +821,33 @@
             document.getElementById('itemPrice').value = i.price || '';
             document.getElementById('itemMinAlert').value = getMinAlert(i);
             document.getElementById('itemNotes').value = i.notes || '';
+            setItemImage(safeImg(i.image));
             (i.sellers || []).forEach(sp => addSellerPriceRow(sp.sellerId, sp.price));
         }
         new bootstrap.Modal(document.getElementById('itemModal')).show();
     };
+
+    // ── Item photo (256x256 base64) ──
+    let __itemImage = '';
+    function setItemImage(dataUrl) {
+        __itemImage = dataUrl || '';
+        const prev = document.getElementById('itemImagePreview');
+        const rm = document.getElementById('itemImageRemoveBtn');
+        const info = document.getElementById('itemImageInfo');
+        if (prev) prev.innerHTML = __itemImage ? `<img src="${safeImg(__itemImage)}" alt="">` : '<i class="fas fa-image"></i>';
+        if (rm) rm.style.display = __itemImage ? '' : 'none';
+        if (info) info.textContent = __itemImage ? `256×256 · ~${Math.round(__itemImage.length * 0.75 / 1024)} KB` : 'Koi photo nahi (optional)';
+    }
+    window.onItemImagePicked = function (input) {
+        const file = input.files && input.files[0];
+        input.value = '';
+        if (!file) return;
+        if (!/^image\//.test(file.type)) { showToast('Sirf image file select karein', 'warning'); return; }
+        resizeImageFile(file, 256, 0.7)
+            .then(url => setItemImage(url))
+            .catch(() => showToast('Image process nahi ho payi (JPG/PNG/WebP try karein)', 'error'));
+    };
+    window.removeItemImage = function () { setItemImage(''); };
 
     // Add seller price row (inside item modal)
     window.addSellerPriceRow = function (sellerId, price) {
@@ -890,12 +965,14 @@
             mrp, price, minAlert,
             sellers,
             notes: document.getElementById('itemNotes').value.trim(),
+            image: __itemImage || '',
+            lastBuyDate: (editId && getItemById(editId)?.lastBuyDate) || null,
             createdAt: editId ? (getItemById(editId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
         if (editId) { const i = items.findIndex(x => x.id === editId); if (i >= 0) items[i] = data; }
         else items.push(data);
-        saveItems(items);
+        if (!saveItems(items)) return;
         bootstrap.Modal.getInstance(document.getElementById('itemModal')).hide();
         showToast(editId ? 'Item updated!' : 'Item added!', 'success');
         refreshItems(); refreshDropdowns(); refreshDashboard(); updateBadges();
@@ -959,10 +1036,10 @@
             const status = getStockStatus(s);
             const value = getSellingPrice(item) * (Number(s.quantity) || 0);
             return `<tr>
-                <td><strong>${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${item.size} ${item.unit}</small></td>
+                <td><div class="d-flex align-items-center gap-2">${thumbHtml(item, 'md')}<div><strong>${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${item.size} ${item.unit}</small></div></div></td>
                 <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td>${storage ? `<i class="fas fa-warehouse text-muted me-1"></i>${escapeHtml(storage.name)}` : '<span class="text-muted">—</span>'}</td>
-                <td><strong>${Number(s.quantity) || 0}</strong></td>
+                <td><strong>${Number(s.quantity) || 0}</strong>${s.rate ? `<br><small class="text-muted">@ ${formatCurrency(s.rate)}</small>` : ''}</td>
                 <td>${s.expiryDate ? formatDate(s.expiryDate) : '<span class="text-muted">—</span>'}</td>
                 <td>${formatCurrency(value)}</td>
                 <td><span class="badge-soft ${status.cls}">${status.label}</span></td>
@@ -984,6 +1061,7 @@
             const min = getMinAlert(item);
             return `<div class="mobile-card">
                 <div class="mobile-card-header">
+                    ${thumbHtml(item, 'lg')}
                     <div style="min-width:0;flex:1;">
                         <div class="mobile-card-title">${escapeHtml(item.itemName)}</div>
                         <div class="mobile-card-sub">${item.size} ${escapeHtml(item.unit)} ${brand ? '· ' + escapeHtml(brand.name) : ''}</div>
@@ -992,6 +1070,7 @@
                 </div>
                 <div class="mobile-card-row"><span class="label"><i class="fas fa-warehouse me-1"></i>Storage</span><span>${storage ? escapeHtml(storage.name) : '—'}</span></div>
                 <div class="mobile-card-row"><span class="label">Quantity</span><span><strong>${Number(s.quantity) || 0}</strong> <small class="text-muted">(Alert ≤ ${min})</small></span></div>
+                ${s.rate ? `<div class="mobile-card-row"><span class="label">Buy Rate</span><span>${formatCurrency(s.rate)}</span></div>` : ''}
                 ${s.expiryDate ? `<div class="mobile-card-row"><span class="label">Expiry</span><span>${formatDate(s.expiryDate)}</span></div>` : ''}
                 <div class="mobile-card-row"><span class="label">Value</span><span><strong>${formatCurrency(value)}</strong></span></div>
                 <div class="mobile-card-actions">
@@ -1017,7 +1096,8 @@
         document.getElementById('stockEditId').value = '';
         document.getElementById('stockModalTitle').textContent = 'Add Stock';
         document.getElementById('stockQuantity').value = '1';
-        document.getElementById('stockPurchaseDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('stockPurchaseDate').value = todayISO();
+        document.getElementById('stockRate').value = '';
         document.getElementById('stockExpiry').value = '';
         document.getElementById('stockNotes').value = '';
         populateDropdown('stockItem', getItems().map(i => {
@@ -1025,6 +1105,7 @@
             return { id: i.id, label: `${brand ? brand.name + ' ' : ''}${i.itemName} (${i.size}${i.unit})` };
         }), false);
         populateDropdown('stockStorage', getStorages().map(s => ({ id: s.id, label: s.name })), false);
+        if (!(mode === 'edit' && id)) onStockItemChange();
         if (mode === 'edit' && id) {
             const s = getStock().find(x => x.id === id); if (!s) return;
             document.getElementById('stockEditId').value = s.id;
@@ -1035,8 +1116,15 @@
             document.getElementById('stockPurchaseDate').value = s.purchaseDate || '';
             document.getElementById('stockExpiry').value = s.expiryDate || '';
             document.getElementById('stockNotes').value = s.notes || '';
+            document.getElementById('stockRate').value = (s.rate !== undefined && s.rate !== null) ? s.rate : '';
         }
         new bootstrap.Modal(document.getElementById('stockModal')).show();
+    };
+    window.onStockItemChange = function () {
+        const id = document.getElementById('stockItem').value;
+        const it = id ? getItemById(id) : null;
+        const rateEl = document.getElementById('stockRate');
+        if (rateEl) rateEl.value = (it && Number(it.price) > 0) ? it.price : '';
     };
     window.saveStock = function () {
         const itemId = document.getElementById('stockItem').value;
@@ -1045,11 +1133,14 @@
         if (!storageId) { showToast('Storage required', 'warning'); return; }
         const qty = parseFloat(document.getElementById('stockQuantity').value);
         if (isNaN(qty) || qty < 0) { showToast('Valid quantity required', 'warning'); return; }
+        const rateRaw = document.getElementById('stockRate').value;
+        const rate = rateRaw === '' ? null : parseFloat(rateRaw);
+        if (rate !== null && (isNaN(rate) || rate < 0)) { showToast('Valid rate required', 'warning'); return; }
         const editId = document.getElementById('stockEditId').value;
         const stock = getStock();
         const data = {
             id: editId || uid('stk'),
-            itemId, storageId, quantity: qty,
+            itemId, storageId, quantity: qty, rate,
             purchaseDate: document.getElementById('stockPurchaseDate').value || null,
             expiryDate: document.getElementById('stockExpiry').value || null,
             notes: document.getElementById('stockNotes').value.trim(),
@@ -1058,10 +1149,18 @@
         };
         if (editId) { const i = stock.findIndex(x => x.id === editId); if (i >= 0) stock[i] = data; }
         else stock.push(data);
-        saveStock(stock);
+        if (!saveStock(stock)) return;
+        // Buy rate -> Item Master Base Price (latest buy)
+        let priceMsg = '';
+        if (rate !== null && rate > 0) {
+            const allItems = getItems();
+            if (applyBuyRate(allItems, itemId, rate, data.purchaseDate)) {
+                if (saveItems(allItems)) priceMsg = ` Base Price → ${formatCurrency(rate)}`;
+            }
+        }
         bootstrap.Modal.getInstance(document.getElementById('stockModal')).hide();
-        showToast(editId ? 'Stock updated!' : 'Stock added!', 'success');
-        refreshStock(); refreshDashboard(); updateBadges();
+        showToast((editId ? 'Stock updated!' : 'Stock added!') + priceMsg, 'success');
+        refreshStock(); refreshItems(); refreshDashboard(); updateBadges();
     };
     window.deleteStock = function (id) {
         if (!confirm('Delete this stock entry?')) return;
@@ -1099,7 +1198,7 @@
         return `<div class="shopping-item ${s.done ? 'done' : ''}">
             <input type="checkbox" class="form-check-input" ${s.done ? 'checked' : ''} onchange="toggleShoppingDone('${s.id}')">
             <div style="flex:1;min-width:0;">
-                <div style="font-weight:700;">${escapeHtml(s.name)}</div>
+                <div style="font-weight:700;display:flex;align-items:center;gap:8px;">${item ? thumbHtml(item, 'sm') : ''}<span>${escapeHtml(s.name)}</span></div>
                 <div style="font-size:0.8rem;color:#64748b;margin-top:2px;">
                     ${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span> ` : ''}
                     ${seller ? `<span class="seller-chip"><span class="seller-name">${escapeHtml(seller.name)}</span> ${s.price ? `<span class="seller-price">${formatCurrency(s.price)}</span>` : ''}</span>` : ''}
@@ -1604,17 +1703,22 @@
     }
 
     // ═══════════════════════════════════════════════════════════
-    // ═══ CSV IMPORT / EXPORT FOR ITEMS ═══
+    // ═══ CSV IMPORT / EXPORT / REMOVE ALL — ALL MODULES ═══
     // ═══════════════════════════════════════════════════════════
 
-    let __csvParsedRows = null;
+    let __ioModule = null;
+    let __ioParsed = null;
+    const ITEM_UNITS = ['gm', 'kg', 'ml', 'l', 'u', 'pcs', 'pack', 'dozen', 'box'];
+    const STORAGE_TYPES = ['rack', 'box', 'refrigerator', 'cabinet', 'room', 'other'];
 
-    // Simple CSV parser (handles quotes & commas)
+    // Simple CSV parser (quotes, commas; ; ya tab delimiter auto-detect)
     function parseCSV(text) {
         const rows = [];
         let cur = '', row = [], inQuotes = false;
-        // Normalize line endings
         text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        const firstLine = text.split('\n')[0] || '';
+        const nComma = firstLine.split(',').length, nSemi = firstLine.split(';').length, nTab = firstLine.split('\t').length;
+        const delim = (nSemi > nComma && nSemi >= nTab) ? ';' : (nTab > nComma ? '\t' : ',');
         for (let i = 0; i < text.length; i++) {
             const ch = text[i];
             if (inQuotes) {
@@ -1624,266 +1728,455 @@
                 } else cur += ch;
             } else {
                 if (ch === '"') inQuotes = true;
-                else if (ch === ',') { row.push(cur); cur = ''; }
+                else if (ch === delim) { row.push(cur); cur = ''; }
                 else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
                 else cur += ch;
             }
         }
         if (cur.length || row.length) { row.push(cur); rows.push(row); }
-        // Filter blank lines
         return rows.filter(r => r.some(c => String(c).trim() !== ''));
     }
-
-    // Escape a value for CSV output
     function csvEsc(v) {
         const s = v === null || v === undefined ? '' : String(v);
         if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
         return s;
     }
-
-    // Build a CSV string from items
-    function itemsToCSV(items) {
-        const header = ['brand', 'itemName', 'category', 'size', 'unit', 'mrp', 'price', 'minAlert', 'notes'];
-        const lines = [header.join(',')];
-        items.forEach(i => {
-            const brand = getBrandById(i.brandId);
-            const cat = getCategoryById(i.categoryId);
-            lines.push([
-                csvEsc(brand ? brand.name : ''),
-                csvEsc(i.itemName || ''),
-                csvEsc(cat ? cat.name : ''),
-                csvEsc(i.size),
-                csvEsc(i.unit),
-                csvEsc(i.mrp),
-                csvEsc(i.price),
-                csvEsc(i.minAlert),
-                csvEsc(i.notes || '')
-            ].join(','));
+    function csvToObjects(text, required) {
+        const rows = parseCSV(String(text || '').replace(/^\uFEFF/, ''));
+        if (rows.length < 2) return { error: 'CSV khaali hai ya data rows nahi hain' };
+        const header = rows[0].map(h => String(h).trim().toLowerCase());
+        const missing = required.filter(r => !header.includes(r));
+        if (missing.length) return { error: 'Missing columns: ' + missing.join(', ') };
+        const objs = rows.slice(1).map((r, i) => {
+            const o = { _row: i + 2 };
+            header.forEach((h, c) => { o[h] = r[c] === undefined ? '' : String(r[c]).trim(); });
+            return o;
         });
-        return lines.join('\n');
+        return { objs };
     }
-
-    // Trigger a download
     function downloadText(filename, text) {
-        const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob(['\uFEFF' + text], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = filename;
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
+    // '' = empty, null = invalid, else YYYY-MM-DD. Accepts YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY
+    function normalizeDate(s) {
+        s = String(s || '').trim();
+        if (!s) return '';
+        let y, mo, d, m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (m) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+        else {
+            m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+            if (!m) return null;
+            d = +m[1]; mo = +m[2]; y = +m[3];
+        }
+        const dt = new Date(y, mo - 1, d);
+        if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+        return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    }
+    // Item Master se brand + itemName + size + unit se item dhundo (ctx me cached lists)
+    function findItemByKey(ctx, brandName, itemName, sizeStr, unit) {
+        if (!brandName || !itemName) return { error: 'brand/itemName missing' };
+        const size = parseFloat(sizeStr);
+        if (!size || size <= 0) return { error: 'invalid size' };
+        if (!unit) return { error: 'unit missing' };
+        const brand = ctx.brands.find(b => b.name.toLowerCase() === brandName.toLowerCase());
+        if (!brand) return { error: `Brand "${brandName}" not found` };
+        const item = ctx.items.find(i => i.brandId === brand.id &&
+            (i.itemName || '').toLowerCase() === itemName.toLowerCase() &&
+            Number(i.size) === size && (i.unit || '').toLowerCase() === unit.toLowerCase());
+        if (!item) return { error: `Item "${brandName} ${itemName} ${size}${unit}" Item Master me nahi mila` };
+        return { item, brand };
+    }
 
-    window.openItemImportModal = function () {
-        const fileInput = document.getElementById('itemCsvFile');
-        if (fileInput) fileInput.value = '';
-        const prev = document.getElementById('csvPreviewContainer');
-        if (prev) prev.innerHTML = '';
-        const btn = document.getElementById('csvImportBtn');
-        if (btn) btn.disabled = true;
-        __csvParsedRows = null;
-        new bootstrap.Modal(document.getElementById('itemImportModal')).show();
+    function makeNameConfig(o) {
+        return {
+            title: o.title, file: o.file,
+            headers: ['name', 'description'], required: ['name'],
+            previewHead: ['Name', 'Description'],
+            sample: o.sample, notes: o.notes,
+            getAll: o.get,
+            toRow: x => [x.name, x.description || ''],
+            makeCtx: () => ({ names: new Set(o.get().map(x => (x.name || '').toLowerCase())) }),
+            parse(row, ctx) {
+                if (!row.name) return { error: 'name missing' };
+                const k = row.name.toLowerCase();
+                if (ctx.names.has(k)) return { dup: `"${row.name}" already exists` };
+                ctx.names.add(k);
+                const description = row.description || '';
+                return { data: { name: row.name, description }, view: [row.name, description || '—'] };
+            },
+            commit(list) {
+                const all = o.get(), now = new Date().toISOString();
+                list.forEach(p => all.push({ id: uid(o.prefix), ...p.data, createdAt: now }));
+                return o.put(all);
+            },
+            blocker: o.blocker
+        };
+    }
+
+    const IO_CONFIG = {
+        brands: makeNameConfig({
+            title: 'Brands', file: 'brands', prefix: 'brd', get: getBrands, put: saveBrands,
+            sample: [['Tata', 'Preferred for staples'], ['Amul', 'Dairy regular']],
+            notes: ['<strong>name</strong> required hai', 'Duplicate brand names skip honge'],
+            blocker: () => getItems().length ? `Pehle Item Master clear karein — ${getItems().length} item(s) brands use karte hain` : ''
+        }),
+        categories: makeNameConfig({
+            title: 'Categories', file: 'categories', prefix: 'cat', get: getCategories, put: saveCategories,
+            sample: [['Kathod', 'Pulses & Lentils'], ['Masala', 'Spices & condiments']],
+            notes: ['<strong>name</strong> required hai', 'Duplicate category names skip honge'],
+            blocker: () => getItems().length ? `Pehle Item Master clear karein — ${getItems().length} item(s) categories use karte hain` : ''
+        }),
+        sellers: makeNameConfig({
+            title: 'Sellers', file: 'sellers', prefix: 'slr', get: getSellers, put: saveSellers,
+            sample: [['Zepto', '10-min delivery'], ['Blinkit', 'Fast delivery']],
+            notes: ['<strong>name</strong> required hai', 'Duplicate seller names skip honge', 'Seller-wise item prices Item Master me set hote hain'],
+            blocker: () => {
+                const n = getItems().filter(i => (i.sellers || []).length).length;
+                return n ? `Pehle Item Master ke seller prices hatayein — ${n} item(s) sellers use karte hain` : '';
+            }
+        }),
+
+        storages: {
+            title: 'Storages', file: 'storages',
+            headers: ['name', 'type', 'description'], required: ['name'],
+            previewHead: ['Name', 'Type', 'Description'],
+            sample: [['Refrigerator', 'refrigerator', 'Kitchen main fridge'], ['Rack A', 'rack', 'Ground floor']],
+            notes: ['<strong>name</strong> required hai', 'type: ' + STORAGE_TYPES.join(' / ') + ' (galat/khaali ho to "other")', 'Duplicate storage names skip honge'],
+            getAll: getStorages,
+            toRow: s => [s.name, s.type || 'other', s.description || ''],
+            makeCtx: () => ({ names: new Set(getStorages().map(x => (x.name || '').toLowerCase())) }),
+            parse(row, ctx) {
+                if (!row.name) return { error: 'name missing' };
+                const k = row.name.toLowerCase();
+                if (ctx.names.has(k)) return { dup: `"${row.name}" already exists` };
+                ctx.names.add(k);
+                const t = (row.type || '').toLowerCase();
+                const type = STORAGE_TYPES.includes(t) ? t : 'other';
+                const description = row.description || '';
+                return { data: { name: row.name, type, description }, view: [row.name, type, description || '—'] };
+            },
+            commit(list) {
+                const all = getStorages(), now = new Date().toISOString();
+                list.forEach(p => all.push({ id: uid('stg'), ...p.data, createdAt: now }));
+                return saveStorages(all);
+            },
+            blocker: () => getStock().length ? `Pehle Stock clear karein — ${getStock().length} stock entr(ies) storages use karti hain` : ''
+        },
+
+        items: {
+            title: 'Items', file: 'items',
+            headers: ['brand', 'itemName', 'category', 'size', 'unit', 'mrp', 'price', 'minAlert', 'notes'],
+            required: ['brand', 'itemname', 'category', 'size', 'unit', 'mrp', 'price'],
+            previewHead: ['Brand', 'Item', 'Category', 'Size', 'MRP', 'Price'],
+            sample: [
+                ['Tata', 'Toor Dal', 'Kathod', '1', 'kg', '220', '180', '2', ''],
+                ['MDH', 'Turmeric Powder', 'Masala', '100', 'gm', '50', '45', '1', ''],
+                ['Amul', 'Milk', 'Dairy', '1', 'l', '66', '60', '3', '']
+            ],
+            notes: [
+                '<strong>brand</strong> &amp; <strong>category</strong> ka naam Brand/Category Master se match hoga — match na hone par row skip',
+                'unit: ' + ITEM_UNITS.join(', '),
+                'Duplicate items skip honge (same brand + item + size + unit)',
+                'Photo CSV me nahi jati — photo/seller prices JSON backup (Settings) me save rehte hain'
+            ],
+            getAll: getItems,
+            toRow: i => {
+                const b = getBrandById(i.brandId), c = getCategoryById(i.categoryId);
+                return [b ? b.name : '', i.itemName || '', c ? c.name : '', i.size, i.unit, i.mrp, i.price, i.minAlert, i.notes || ''];
+            },
+            makeCtx: () => ({
+                brands: getBrands(), cats: getCategories(),
+                seen: new Set(getItems().map(i => [i.brandId, (i.itemName || '').toLowerCase(), Number(i.size), (i.unit || '').toLowerCase()].join('|')))
+            }),
+            parse(row, ctx) {
+                const brandName = row.brand, itemName = row.itemname, catName = row.category;
+                const size = parseFloat(row.size), unit = (row.unit || '').toLowerCase();
+                const mrp = parseFloat(row.mrp), price = parseFloat(row.price);
+                const minAlert = (row.minalert !== undefined && row.minalert !== '') ? parseFloat(row.minalert) : 0;
+                if (!brandName || !itemName || !catName) return { error: 'brand/itemName/category missing' };
+                const brand = ctx.brands.find(b => b.name.toLowerCase() === brandName.toLowerCase());
+                if (!brand) return { error: `Brand "${brandName}" not found` };
+                const cat = ctx.cats.find(c => c.name.toLowerCase() === catName.toLowerCase());
+                if (!cat) return { error: `Category "${catName}" not found` };
+                if (!size || size <= 0) return { error: 'invalid size' };
+                if (isNaN(mrp) || mrp < 0) return { error: 'invalid mrp' };
+                if (isNaN(price) || price < 0) return { error: 'invalid price' };
+                if (!unit) return { error: 'unit missing' };
+                if (!ITEM_UNITS.includes(unit)) return { error: `invalid unit "${unit}" (allowed: ${ITEM_UNITS.join(', ')})` };
+                const key = [brand.id, itemName.toLowerCase(), size, unit].join('|');
+                if (ctx.seen.has(key)) return { dup: `${brandName} ${itemName} (${size}${unit}) already exists` };
+                ctx.seen.add(key);
+                return {
+                    data: { brandId: brand.id, categoryId: cat.id, itemName, size, unit, mrp, price, minAlert: isNaN(minAlert) ? 0 : minAlert, notes: row.notes || '' },
+                    view: [brand.name, itemName, cat.name, size + unit, formatCurrency(mrp), formatCurrency(price)]
+                };
+            },
+            commit(list) {
+                const all = getItems(), now = new Date().toISOString();
+                list.forEach(p => all.push({ id: uid('itm'), ...p.data, sellers: [], image: '', createdAt: now, updatedAt: now }));
+                return saveItems(all);
+            },
+            blocker: () => getStock().length ? `Pehle Stock clear karein — ${getStock().length} stock entr(ies) items use karti hain` : ''
+        },
+
+        stock: {
+            title: 'Stock', file: 'stock',
+            headers: ['brand', 'itemName', 'size', 'unit', 'storage', 'quantity', 'rate', 'purchaseDate', 'expiryDate', 'notes'],
+            required: ['brand', 'itemname', 'size', 'unit', 'storage', 'quantity'],
+            previewHead: ['Item', 'Storage', 'Qty', 'Rate', 'Expiry'],
+            sample: [
+                ['Tata', 'Toor Dal', '1', 'kg', 'Storage Box', '3', '180', todayISO(), '', ''],
+                ['Amul', 'Milk', '1', 'l', 'Refrigerator', '2', '60', todayISO(), '', '']
+            ],
+            notes: [
+                'item (brand + itemName + size + unit) aur <strong>storage</strong> pehle se Master me hone chahiye',
+                '<strong>rate</strong> (optional): import hone par Item Master ka Base Price latest purchaseDate wale rate se update hota hai',
+                'Dates: YYYY-MM-DD ya DD/MM/YYYY',
+                'Bilkul same entry (item + storage + qty + dates) skip hogi'
+            ],
+            getAll: getStock,
+            toRow: s => {
+                const item = getItemById(s.itemId); if (!item) return null;
+                const b = getBrandById(item.brandId), st = getStorageById(s.storageId);
+                return [b ? b.name : '', item.itemName, item.size, item.unit, st ? st.name : '', s.quantity, (s.rate === null || s.rate === undefined) ? '' : s.rate, s.purchaseDate || '', s.expiryDate || '', s.notes || ''];
+            },
+            makeCtx: () => ({
+                brands: getBrands(), items: getItems(), storages: getStorages(),
+                seen: new Set(getStock().map(s => [s.itemId, s.storageId, Number(s.quantity), s.purchaseDate || '', s.expiryDate || ''].join('|')))
+            }),
+            parse(row, ctx) {
+                const f = findItemByKey(ctx, row.brand, row.itemname, row.size, (row.unit || '').trim());
+                if (f.error) return { error: f.error };
+                const st = ctx.storages.find(s => s.name.toLowerCase() === (row.storage || '').toLowerCase());
+                if (!st) return { error: `Storage "${row.storage}" not found` };
+                const qty = parseFloat(row.quantity);
+                if (isNaN(qty) || qty < 0) return { error: 'invalid quantity' };
+                const rate = (row.rate === undefined || row.rate === '') ? null : parseFloat(row.rate);
+                if (rate !== null && (isNaN(rate) || rate < 0)) return { error: 'invalid rate' };
+                const pd = normalizeDate(row.purchasedate), ed = normalizeDate(row.expirydate);
+                if (pd === null) return { error: 'invalid purchaseDate (YYYY-MM-DD ya DD/MM/YYYY)' };
+                if (ed === null) return { error: 'invalid expiryDate (YYYY-MM-DD ya DD/MM/YYYY)' };
+                const key = [f.item.id, st.id, qty, pd || '', ed || ''].join('|');
+                if (ctx.seen.has(key)) return { dup: `${f.brand.name} ${f.item.itemName} @ ${st.name} already exists` };
+                ctx.seen.add(key);
+                return {
+                    data: { itemId: f.item.id, storageId: st.id, quantity: qty, rate, purchaseDate: pd || null, expiryDate: ed || null, notes: row.notes || '' },
+                    view: [`${f.brand.name} ${f.item.itemName} ${f.item.size}${f.item.unit}`, st.name, qty, rate !== null ? formatCurrency(rate) : '—', ed ? formatDate(ed) : '—']
+                };
+            },
+            commit(list) {
+                const all = getStock(), items = getItems(), now = new Date().toISOString();
+                let itemsChanged = false;
+                // purani date pehle, taaki latest purchase ka rate Base Price bane
+                [...list].sort((a, b) => (a.data.purchaseDate || '').localeCompare(b.data.purchaseDate || '')).forEach(p => {
+                    all.push({ id: uid('stk'), ...p.data, createdAt: now, updatedAt: now });
+                    if (p.data.rate > 0 && applyBuyRate(items, p.data.itemId, p.data.rate, p.data.purchaseDate)) itemsChanged = true;
+                });
+                if (!saveStock(all)) return false;
+                if (itemsChanged) saveItems(items);
+                return true;
+            }
+        },
+
+        shopping: {
+            title: 'Shopping List', file: 'shopping',
+            headers: ['brand', 'itemName', 'size', 'unit', 'seller', 'qty', 'price', 'done', 'notes'],
+            required: ['brand', 'itemname', 'size', 'unit', 'qty'],
+            previewHead: ['Item', 'Seller', 'Qty', 'Price', 'Done'],
+            sample: [
+                ['Tata', 'Toor Dal', '1', 'kg', 'Blinkit', '2', '175', 'no', ''],
+                ['Amul', 'Milk', '1', 'l', '', '3', '', 'no', '']
+            ],
+            notes: [
+                'item (brand + itemName + size + unit) Item Master me hona chahiye',
+                '<strong>seller</strong> optional — likha ho to Seller Master se match hoga',
+                '<strong>price</strong> khaali ho to seller/base price auto-fill hoga',
+                'done: yes / no'
+            ],
+            getAll: getShopping,
+            toRow: s => {
+                const item = s.itemId ? getItemById(s.itemId) : null; if (!item) return null;
+                const b = getBrandById(item.brandId), sl = s.sellerId ? getSellerById(s.sellerId) : null;
+                return [b ? b.name : '', item.itemName, item.size, item.unit, sl ? sl.name : '', s.qty, s.price || '', s.done ? 'yes' : 'no', s.notes || ''];
+            },
+            makeCtx: () => ({
+                brands: getBrands(), items: getItems(), sellers: getSellers(),
+                seen: new Set(getShopping().map(s => [s.itemId, s.sellerId || '', Number(s.qty), Number(s.price) || 0, s.done ? 1 : 0].join('|')))
+            }),
+            parse(row, ctx) {
+                const f = findItemByKey(ctx, row.brand, row.itemname, row.size, (row.unit || '').trim());
+                if (f.error) return { error: f.error };
+                const qty = parseFloat(row.qty);
+                if (isNaN(qty) || qty <= 0) return { error: 'invalid qty' };
+                let seller = null;
+                if (row.seller) {
+                    seller = ctx.sellers.find(s => s.name.toLowerCase() === row.seller.toLowerCase());
+                    if (!seller) return { error: `Seller "${row.seller}" not found` };
+                }
+                let price;
+                if (row.price !== undefined && row.price !== '') {
+                    price = parseFloat(row.price);
+                    if (isNaN(price) || price < 0) return { error: 'invalid price' };
+                } else {
+                    const sp = seller ? (f.item.sellers || []).find(x => x.sellerId === seller.id) : null;
+                    price = sp ? Number(sp.price) : (Number(f.item.price) || Number(f.item.mrp) || 0);
+                }
+                const done = /^(yes|y|true|1|done)$/i.test(row.done || '');
+                const key = [f.item.id, seller ? seller.id : '', qty, price, done ? 1 : 0].join('|');
+                if (ctx.seen.has(key)) return { dup: `${f.brand.name} ${f.item.itemName} already in list` };
+                ctx.seen.add(key);
+                return {
+                    data: { itemId: f.item.id, sellerId: seller ? seller.id : null, name: f.brand.name + ' ' + f.item.itemName, qty, unit: f.item.unit, price, totalPrice: qty * price, notes: row.notes || '', done },
+                    view: [`${f.brand.name} ${f.item.itemName} ${f.item.size}${f.item.unit}`, seller ? seller.name : '—', qty, formatCurrency(price), done ? 'yes' : 'no']
+                };
+            },
+            commit(list) {
+                const all = getShopping(), now = new Date().toISOString();
+                list.forEach(p => all.push({ id: uid('shp'), ...p.data, createdAt: now }));
+                return saveShopping(all);
+            }
+        }
     };
 
-    window.downloadCsvTemplate = function () {
-        const sample = [
-            'brand,itemName,category,size,unit,mrp,price,minAlert,notes',
-            'Tata,Toor Dal,Kathod,1,kg,220,180,2,',
-            'MDH,Turmeric Powder,Masala,100,gm,50,45,1,',
-            'Amul,Milk,Dairy,1,l,66,60,3,'
-        ].join('\n');
-        downloadText('gharseva_items_template.csv', sample);
+    function ioRefreshAll() { refreshCurrentPage(); refreshDropdowns(); refreshDashboard(); updateBadges(); }
+
+    // CSV dropdown (Import / Export / Remove All) har page header me
+    function buildIoMenus() {
+        document.querySelectorAll('.io-menu[data-module]').forEach(el => {
+            const k = el.getAttribute('data-module');
+            el.classList.add('dropdown');
+            el.innerHTML = `<button class="btn btn-outline-custom btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="fas fa-file-csv me-1"></i>CSV</button>
+                <ul class="dropdown-menu shadow-sm">
+                    <li><button class="dropdown-item" type="button" onclick="openImportModal('${k}')"><i class="fas fa-file-import me-2 text-primary"></i>Import CSV</button></li>
+                    <li><button class="dropdown-item" type="button" onclick="exportModuleCsv('${k}')"><i class="fas fa-file-export me-2 text-success"></i>Export CSV</button></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><button class="dropdown-item text-danger" type="button" onclick="removeAllModule('${k}')"><i class="fas fa-trash me-2"></i>Remove All</button></li>
+                </ul>`;
+        });
+    }
+
+    window.exportModuleCsv = function (key) {
+        const cfg = IO_CONFIG[key]; if (!cfg) return;
+        const data = cfg.getAll();
+        if (!data.length) { showToast(`${cfg.title}: export karne ke liye kuch nahi hai`, 'warning'); return; }
+        const lines = [cfg.headers.join(',')];
+        data.forEach(x => { const row = cfg.toRow(x); if (row) lines.push(row.map(csvEsc).join(',')); });
+        downloadText(`gharseva_${cfg.file}_${todayISO()}.csv`, lines.join('\n'));
+        showToast(`${cfg.title} exported!`, 'success');
+    };
+
+    window.removeAllModule = function (key) {
+        const cfg = IO_CONFIG[key]; if (!cfg) return;
+        const n = cfg.getAll().length;
+        if (!n) { showToast(`${cfg.title}: delete karne ke liye kuch nahi hai`, 'info'); return; }
+        const block = cfg.blocker ? cfg.blocker() : '';
+        if (block) { showToast(block, 'error'); return; }
+        if (!confirm(`⚠️ ${n} ${cfg.title} entr(ies) delete hongi. Ye undo nahi hoga.\n\nPehle Export CSV kar lena behtar hai. Continue?`)) return;
+        if (!confirm(`Pakka? Saari ${cfg.title} permanently delete ho jayengi.`)) return;
+        const emptyList = [];
+        const map = { brands: saveBrands, categories: saveCategories, sellers: saveSellers, storages: saveStorages, items: saveItems, stock: saveStock, shopping: saveShopping };
+        map[key](emptyList);
+        showToast(`${cfg.title}: saare ${n} delete ho gaye`, 'success');
+        ioRefreshAll();
+    };
+
+    window.openImportModal = function (key) {
+        const cfg = IO_CONFIG[key]; if (!cfg) return;
+        __ioModule = key; __ioParsed = null;
+        document.getElementById('ioModalTitle').textContent = `Import ${cfg.title} from CSV`;
+        document.getElementById('ioFormat').textContent = cfg.headers.join(',');
+        document.getElementById('ioNotes').innerHTML = cfg.notes.map(n => `<li>${n}</li>`).join('');
+        document.getElementById('ioCsvFile').value = '';
+        document.getElementById('ioPreview').innerHTML = '';
+        document.getElementById('ioImportBtn').disabled = true;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('ioModal')).show();
+    };
+    window.downloadIoTemplate = function () {
+        const cfg = IO_CONFIG[__ioModule]; if (!cfg) return;
+        const lines = [cfg.headers.join(',')].concat(cfg.sample.map(r => r.map(csvEsc).join(',')));
+        downloadText(`gharseva_${cfg.file}_template.csv`, lines.join('\n'));
         showToast('Template downloaded!', 'success');
     };
+    window.exportCurrentIoModule = function () { if (__ioModule) exportModuleCsv(__ioModule); };
 
-    window.downloadCsvWithData = function () {
-        const items = getItems();
-        if (!items.length) { showToast('No items to export', 'warning'); return; }
-        const csv = itemsToCSV(items);
-        downloadText('gharseva_items_' + new Date().toISOString().split('T')[0] + '.csv', csv);
-        showToast('Items exported!', 'success');
-    };
-
-    // When user selects a file
+    // File select
     document.addEventListener('change', function (e) {
-        if (!e.target || e.target.id !== 'itemCsvFile') return;
+        if (!e.target || e.target.id !== 'ioCsvFile') return;
+        const cfg = IO_CONFIG[__ioModule];
         const file = e.target.files && e.target.files[0];
-        if (!file) return;
-
+        if (!cfg || !file) return;
         const reader = new FileReader();
         reader.onload = function (ev) {
             try {
-                const text = String(ev.target.result || '').replace(/^\uFEFF/, ''); // strip BOM
-                const rows = parseCSV(text);
-                if (rows.length < 2) { showToast('CSV empty or missing rows', 'error'); return; }
-
-                const header = rows[0].map(h => String(h).trim().toLowerCase());
-                const required = ['brand', 'itemname', 'category', 'size', 'unit', 'mrp', 'price'];
-                const idx = {};
-                header.forEach((h, i) => { idx[h] = i; });
-                const missing = required.filter(r => idx[r] === undefined);
-                if (missing.length) {
-                    showToast('Missing columns: ' + missing.join(', '), 'error');
+                const res = csvToObjects(ev.target.result, cfg.required);
+                if (res.error) {
+                    __ioParsed = null;
+                    document.getElementById('ioPreview').innerHTML = '';
+                    document.getElementById('ioImportBtn').disabled = true;
+                    showToast(res.error, 'error');
                     return;
                 }
-
-                const brands = getBrands();
-                const cats = getCategories();
-                const existing = getItems();
-
-                const parsed = [];
-                const errors = [];
-                const skippedDup = [];
-
-                for (let r = 1; r < rows.length; r++) {
-                    const row = rows[r];
-                    const brandName = String(row[idx['brand']] || '').trim();
-                    const itemName = String(row[idx['itemname']] || '').trim();
-                    const catName = String(row[idx['category']] || '').trim();
-                    const size = parseFloat(row[idx['size']]);
-                    const unit = String(row[idx['unit']] || '').trim().toLowerCase();
-                    const mrp = parseFloat(row[idx['mrp']]);
-                    const price = parseFloat(row[idx['price']]);
-                    const minAlert = idx['minalert'] !== undefined ? parseFloat(row[idx['minalert']]) : 0;
-                    const notes = idx['notes'] !== undefined ? String(row[idx['notes']] || '').trim() : '';
-
-                    if (!brandName || !itemName || !catName) {
-                        errors.push(`Row ${r + 1}: brand/itemName/category missing`);
-                        continue;
-                    }
-                    const brand = brands.find(b => b.name.toLowerCase() === brandName.toLowerCase());
-                    if (!brand) {
-                        errors.push(`Row ${r + 1}: Brand "${brandName}" not found`);
-                        continue;
-                    }
-                    const cat = cats.find(c => c.name.toLowerCase() === catName.toLowerCase());
-                    if (!cat) {
-                        errors.push(`Row ${r + 1}: Category "${catName}" not found`);
-                        continue;
-                    }
-                    if (!size || size <= 0) { errors.push(`Row ${r + 1}: invalid size`); continue; }
-                    if (isNaN(mrp) || mrp < 0) { errors.push(`Row ${r + 1}: invalid mrp`); continue; }
-                    if (isNaN(price) || price < 0) { errors.push(`Row ${r + 1}: invalid price`); continue; }
-                    if (!unit) { errors.push(`Row ${r + 1}: unit missing`); continue; }
-
-                    // Duplicate check: same brand + itemName (case-insensitive) + size + unit
-                    const dup = existing.find(i =>
-                        i.brandId === brand.id &&
-                        (i.itemName || '').toLowerCase() === itemName.toLowerCase() &&
-                        Number(i.size) === Number(size) &&
-                        (i.unit || '').toLowerCase() === unit
-                    );
-                    if (dup) { skippedDup.push(`Row ${r + 1}: ${brandName} ${itemName} (${size}${unit}) already exists`); continue; }
-
-                    parsed.push({
-                        _row: r + 1,
-                        brandId: brand.id,
-                        categoryId: cat.id,
-                        itemName,
-                        size,
-                        unit,
-                        mrp,
-                        price,
-                        minAlert: isNaN(minAlert) ? 0 : minAlert,
-                        notes,
-                        sellers: []
-                    });
-                }
-
-                __csvParsedRows = parsed;
-                renderCsvPreview(parsed, errors, skippedDup);
+                const ctx = cfg.makeCtx();
+                const parsed = [], errors = [], skipped = [];
+                res.objs.forEach(o => {
+                    const r = cfg.parse(o, ctx);
+                    if (r.error) errors.push(`Row ${o._row}: ${r.error}`);
+                    else if (r.dup) skipped.push(`Row ${o._row}: ${r.dup}`);
+                    else parsed.push(r);
+                });
+                __ioParsed = parsed;
+                renderIoPreview(cfg, parsed, errors, skipped);
             } catch (err) {
                 console.error(err);
-                showToast('Could not parse CSV', 'error');
+                showToast('CSV parse nahi ho payi', 'error');
             }
         };
         reader.readAsText(file);
     });
 
-    function renderCsvPreview(parsed, errors, skippedDup) {
-        const c = document.getElementById('csvPreviewContainer');
-        if (!c) return;
-        let html = '';
-
-        html += `<div class="d-flex gap-2 flex-wrap mb-2">
+    function renderIoPreview(cfg, parsed, errors, skipped) {
+        const c = document.getElementById('ioPreview'); if (!c) return;
+        let html = `<div class="d-flex gap-2 flex-wrap mb-2">
             <span class="badge-soft green">✅ Ready: ${parsed.length}</span>
             ${errors.length ? `<span class="badge-soft red">❌ Errors: ${errors.length}</span>` : ''}
-            ${skippedDup.length ? `<span class="badge-soft orange">⚠️ Skipped: ${skippedDup.length}</span>` : ''}
+            ${skipped.length ? `<span class="badge-soft orange">⚠️ Skipped: ${skipped.length}</span>` : ''}
         </div>`;
-
         if (parsed.length) {
             html += `<div style="max-height:220px;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;">
                 <table class="table table-sm mb-0" style="font-size:0.8rem;">
-                    <thead style="position:sticky;top:0;background:#f8fafc;z-index:1;">
-                        <tr>
-                            <th>Brand</th><th>Item</th><th>Cat</th>
-                            <th>Size</th><th>MRP</th><th>Price</th><th>Min</th>
-                        </tr>
-                    </thead><tbody>`;
-            parsed.forEach(p => {
-                const b = getBrandById(p.brandId);
-                const cat = getCategoryById(p.categoryId);
-                html += `<tr>
-                    <td>${escapeHtml(b ? b.name : '')}</td>
-                    <td>${escapeHtml(p.itemName)}</td>
-                    <td>${escapeHtml(cat ? cat.name : '')}</td>
-                    <td>${p.size}${escapeHtml(p.unit)}</td>
-                    <td>${formatCurrency(p.mrp)}</td>
-                    <td>${formatCurrency(p.price)}</td>
-                    <td>${p.minAlert}</td>
-                </tr>`;
-            });
-            html += `</tbody></table></div>`;
+                    <thead style="position:sticky;top:0;background:#f8fafc;z-index:1;"><tr>${cfg.previewHead.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+                    <tbody>${parsed.slice(0, 200).map(p => `<tr>${p.view.map(v => `<td>${escapeHtml(String(v))}</td>`).join('')}</tr>`).join('')}</tbody>
+                </table></div>`;
+            if (parsed.length > 200) html += `<small class="text-muted">Preview me pehli 200 rows — import me saari ${parsed.length} judengi.</small>`;
         }
-
         if (errors.length) {
-            html += `<details class="mt-2" style="font-size:0.8rem;">
-                <summary class="fw-semibold text-danger">Show errors (${errors.length})</summary>
-                <ul class="mb-0 ps-3">${errors.slice(0, 50).map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
-            </details>`;
+            html += `<details class="mt-2" style="font-size:0.8rem;"><summary class="fw-semibold text-danger">Show errors (${errors.length})</summary>
+                <ul class="mb-0 ps-3">${errors.slice(0, 50).map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul></details>`;
         }
-        if (skippedDup.length) {
-            html += `<details class="mt-2" style="font-size:0.8rem;">
-                <summary class="fw-semibold text-warning">Show skipped duplicates (${skippedDup.length})</summary>
-                <ul class="mb-0 ps-3">${skippedDup.slice(0, 50).map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
-            </details>`;
+        if (skipped.length) {
+            html += `<details class="mt-2" style="font-size:0.8rem;"><summary class="fw-semibold text-warning">Show skipped duplicates (${skipped.length})</summary>
+                <ul class="mb-0 ps-3">${skipped.slice(0, 50).map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul></details>`;
         }
-
         c.innerHTML = html;
-
-        const btn = document.getElementById('csvImportBtn');
+        const btn = document.getElementById('ioImportBtn');
         if (btn) btn.disabled = parsed.length === 0;
     }
 
-    window.confirmCsvImport = function () {
-        if (!__csvParsedRows || !__csvParsedRows.length) {
-            showToast('Nothing to import', 'warning'); return;
-        }
-        const items = getItems();
-        const now = new Date().toISOString();
-        let added = 0;
-        __csvParsedRows.forEach(p => {
-            items.push({
-                id: uid('itm'),
-                brandId: p.brandId,
-                itemName: p.itemName,
-                categoryId: p.categoryId,
-                size: p.size,
-                unit: p.unit,
-                mrp: p.mrp,
-                price: p.price,
-                minAlert: p.minAlert,
-                notes: p.notes || '',
-                sellers: [],
-                createdAt: now,
-                updatedAt: now
-            });
-            added++;
-        });
-        saveItems(items);
-        bootstrap.Modal.getInstance(document.getElementById('itemImportModal')).hide();
-        showToast(`${added} item(s) imported!`, 'success');
-        refreshItems(); refreshDropdowns(); refreshDashboard(); updateBadges();
-        __csvParsedRows = null;
+    window.confirmIoImport = function () {
+        const cfg = IO_CONFIG[__ioModule];
+        if (!cfg || !__ioParsed || !__ioParsed.length) { showToast('Import karne ke liye kuch nahi hai', 'warning'); return; }
+        const n = __ioParsed.length;
+        if (cfg.commit(__ioParsed) === false) return; // storage full toast pehle hi dikh chuka
+        const inst = bootstrap.Modal.getInstance(document.getElementById('ioModal'));
+        if (inst) inst.hide();
+        showToast(`${n} ${cfg.title} imported!`, 'success');
+        __ioParsed = null;
+        ioRefreshAll();
     };
 
     // ═══ Init ═══
@@ -1983,6 +2276,7 @@
             });
         });
 
+        buildIoMenus();
         attachSearchListeners();
         refreshDropdowns();
         navigateTo('dashboard');

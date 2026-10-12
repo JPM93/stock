@@ -18,6 +18,70 @@
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="mobile.css">
+    <style>
+        /* Item photo thumbnails + CSV menu */
+        .item-thumb {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            flex-shrink: 0;
+            vertical-align: middle;
+        }
+
+        .item-thumb.sm {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+        }
+
+        .item-thumb.lg {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            margin-right: 10px;
+        }
+
+        .item-thumb-ph {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #cbd5e1;
+            font-size: 0.95rem;
+        }
+
+        .item-img-preview {
+            width: 88px;
+            height: 88px;
+            border-radius: 14px;
+            border: 1.5px dashed #cbd5e1;
+            background: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            color: #94a3b8;
+            font-size: 1.6rem;
+            flex-shrink: 0;
+        }
+
+        .item-img-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .io-menu {
+            flex: 0 0 auto;
+        }
+
+        .io-menu .dropdown-item {
+            padding: 0.65rem 1rem;
+            font-size: 0.9rem;
+        }
+    </style>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
 </head>
@@ -165,8 +229,11 @@
             <div class="section-page" id="page-stock">
                 <div class="page-header">
                     <h5 class="fw-bold mb-0">📦 Available Stock</h5>
-                    <button class="btn btn-primary-custom btn-sm" onclick="openStockModal()"><i
-                            class="fas fa-plus me-1"></i>Add Stock</button>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <div class="io-menu" data-module="stock"></div>
+                        <button class="btn btn-primary-custom btn-sm" onclick="openStockModal()"><i
+                                class="fas fa-plus me-1"></i>Add Stock</button>
+                    </div>
                 </div>
                 <div class="filters-bar">
                     <input type="text" class="form-control form-control-sm" id="stockSearch"
@@ -218,9 +285,7 @@
                 <div class="page-header">
                     <h5 class="fw-bold mb-0">🏷️ Item Master</h5>
                     <div class="d-flex gap-2 flex-wrap">
-                        <button class="btn btn-outline-custom btn-sm" onclick="openItemImportModal()">
-                            <i class="fas fa-file-csv me-1"></i>Import CSV
-                        </button>
+                        <div class="io-menu" data-module="items"></div>
                         <button class="btn btn-primary-custom btn-sm" onclick="openItemModal()">
                             <i class="fas fa-plus me-1"></i>Add Item
                         </button>
@@ -264,8 +329,11 @@
             <div class="section-page" id="page-brands">
                 <div class="page-header">
                     <h5 class="fw-bold mb-0">©️ Brand Master</h5>
-                    <button class="btn btn-primary-custom btn-sm" onclick="openBrandModal()"><i
-                            class="fas fa-plus me-1"></i>Add Brand</button>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <div class="io-menu" data-module="brands"></div>
+                        <button class="btn btn-primary-custom btn-sm" onclick="openBrandModal()"><i
+                                class="fas fa-plus me-1"></i>Add Brand</button>
+                    </div>
                 </div>
                 <div class="row g-3" id="brandsGrid"></div>
             </div>
@@ -274,8 +342,11 @@
             <div class="section-page" id="page-sellers">
                 <div class="page-header">
                     <h5 class="fw-bold mb-0">🏪 Seller Master</h5>
-                    <button class="btn btn-primary-custom btn-sm" onclick="openSellerModal()"><i
-                            class="fas fa-plus me-1"></i>Add Seller</button>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <div class="io-menu" data-module="sellers"></div>
+                        <button class="btn btn-primary-custom btn-sm" onclick="openSellerModal()"><i
+                                class="fas fa-plus me-1"></i>Add Seller</button>
+                    </div>
                 </div>
                 <div class="row g-3" id="sellersGrid"></div>
             </div>
@@ -284,8 +355,11 @@
             <div class="section-page" id="page-categories">
                 <div class="page-header">
                     <h5 class="fw-bold mb-0">📚 Category Master</h5>
-                    <button class="btn btn-primary-custom btn-sm" onclick="openCategoryModal()"><i
-                            class="fas fa-plus me-1"></i>Add Category</button>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <div class="io-menu" data-module="categories"></div>
+                        <button class="btn btn-primary-custom btn-sm" onclick="openCategoryModal()"><i
+                                class="fas fa-plus me-1"></i>Add Category</button>
+                    </div>
                 </div>
                 <div class="row g-3" id="categoriesGrid"></div>
             </div>
@@ -294,8 +368,11 @@
             <div class="section-page" id="page-storages">
                 <div class="page-header">
                     <h5 class="fw-bold mb-0">🏠 Storage Master</h5>
-                    <button class="btn btn-primary-custom btn-sm" onclick="openStorageModal()"><i
-                            class="fas fa-plus me-1"></i>Add Storage</button>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <div class="io-menu" data-module="storages"></div>
+                        <button class="btn btn-primary-custom btn-sm" onclick="openStorageModal()"><i
+                                class="fas fa-plus me-1"></i>Add Storage</button>
+                    </div>
                 </div>
                 <div class="row g-3" id="storagesGrid"></div>
             </div>
@@ -305,6 +382,7 @@
                 <div class="page-header">
                     <h5 class="fw-bold mb-0">🛒 Shopping List</h5>
                     <div class="d-flex gap-2 flex-wrap">
+                        <div class="io-menu" data-module="shopping"></div>
                         <button class="btn btn-outline-custom btn-sm" onclick="autoGenerateShoppingList()"><i
                                 class="fas fa-wand-magic-sparkles me-1"></i>Auto</button>
                         <button class="btn btn-primary-custom btn-sm" onclick="openShoppingModal()"><i
@@ -518,6 +596,26 @@
                 <div class="modal-body">
                     <input type="hidden" id="itemEditId">
                     <div class="row g-3">
+                        <div class="col-12">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="item-img-preview" id="itemImagePreview"><i class="fas fa-image"></i></div>
+                                <div class="flex-grow-1">
+                                    <label class="form-label fw-semibold mb-1">Product Photo</label>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button type="button" class="btn btn-sm btn-outline-custom"
+                                            onclick="document.getElementById('itemImageInput').click()"><i
+                                                class="fas fa-camera me-1"></i>Photo choose</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                            id="itemImageRemoveBtn" style="display:none;" onclick="removeItemImage()"><i
+                                                class="fas fa-times me-1"></i>Remove</button>
+                                    </div>
+                                    <small class="text-muted d-block mt-1" id="itemImageInfo"
+                                        style="font-size:0.72rem;">Koi photo nahi (optional)</small>
+                                    <input type="file" id="itemImageInput" accept="image/*" style="display:none;"
+                                        onchange="onItemImagePicked(this)">
+                                </div>
+                            </div>
+                        </div>
                         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Brand *</label><select
                                 class="form-select" id="itemBrand"></select></div>
                         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Item Name *</label><input
@@ -533,6 +631,7 @@
                                 <option value="kg">kg</option>
                                 <option value="ml">ml</option>
                                 <option value="l">l</option>
+                                <option value="u">u</option>
                                 <option value="pcs">pcs</option>
                                 <option value="pack">pack</option>
                                 <option value="dozen">dozen</option>
@@ -544,8 +643,8 @@
                                 min="0"></div>
                         <div class="col-6 col-md-4"><label class="form-label fw-semibold">Base Price (₹) *</label><input
                                 type="number" class="form-control" id="itemPrice" placeholder="e.g., 25" step="0.01"
-                                min="0"><small class="text-muted" style="font-size:0.7rem;">Default / fallback
-                                price</small></div>
+                                min="0"><small class="text-muted" style="font-size:0.7rem;">Latest buy rate (stock add
+                                par auto-update)</small></div>
                         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Min Alert Level
                                 *</label><input type="number" class="form-control" id="itemMinAlert"
                                 placeholder="e.g., 1" step="0.01" min="0" value="1"></div>
@@ -577,49 +676,43 @@
         </div>
     </div>
 
-    <!-- ══════════ CSV IMPORT MODAL ══════════ -->
-    <div class="modal fade modal-custom" id="itemImportModal" tabindex="-1">
+    <!-- ══════════ CSV IMPORT MODAL (all modules) ══════════ -->
+    <div class="modal fade modal-custom" id="ioModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Import Items from CSV</h5>
+                    <h5 class="modal-title fw-bold" id="ioModalTitle">Import from CSV</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
 
                     <div class="alert alert-info small mb-3" style="border-radius:12px;">
                         <strong><i class="fas fa-circle-info me-1"></i>CSV Format:</strong>
-                        <div
+                        <div id="ioFormat"
                             style="font-family:monospace;font-size:0.75rem;margin-top:6px;padding:8px;background:#fff;border-radius:8px;overflow-x:auto;white-space:nowrap;">
-                            brand,itemName,category,size,unit,mrp,price,minAlert,notes
                         </div>
-                        <ul class="mb-0 mt-2 ps-3" style="font-size:0.78rem;">
-                            <li><strong>brand</strong> &amp; <strong>category</strong> ka naam Brand/Category Master se
-                                match hoga</li>
-                            <li>Match na hone par us row ko skip kar diya jayega</li>
-                            <li>Duplicate items skip honge (same brand + item + size + unit)</li>
-                        </ul>
+                        <ul class="mb-0 mt-2 ps-3" id="ioNotes" style="font-size:0.78rem;"></ul>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label fw-semibold">CSV File select karo</label>
-                        <input type="file" class="form-control" id="itemCsvFile" accept=".csv,text/csv">
+                        <input type="file" class="form-control" id="ioCsvFile" accept=".csv,text/csv">
                     </div>
 
                     <div class="d-flex gap-2 flex-wrap mb-3">
-                        <button class="btn btn-sm btn-outline-custom" onclick="downloadCsvTemplate()">
+                        <button class="btn btn-sm btn-outline-custom" onclick="downloadIoTemplate()">
                             <i class="fas fa-download me-1"></i>Download Template
                         </button>
-                        <button class="btn btn-sm btn-outline-custom" onclick="downloadCsvWithData()">
-                            <i class="fas fa-file-export me-1"></i>Export Existing Items
+                        <button class="btn btn-sm btn-outline-custom" onclick="exportCurrentIoModule()">
+                            <i class="fas fa-file-export me-1"></i>Export Existing
                         </button>
                     </div>
 
-                    <div id="csvPreviewContainer"></div>
+                    <div id="ioPreview"></div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-primary-custom" id="csvImportBtn" onclick="confirmCsvImport()" disabled>
+                    <button class="btn btn-primary-custom" id="ioImportBtn" onclick="confirmIoImport()" disabled>
                         <i class="fas fa-upload me-1"></i>Import
                     </button>
                 </div>
@@ -639,7 +732,7 @@
                     <input type="hidden" id="stockEditId">
                     <div class="row g-3">
                         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Item *</label><select
-                                class="form-select" id="stockItem"></select></div>
+                                class="form-select" id="stockItem" onchange="onStockItemChange()"></select></div>
                         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Storage Location
                                 *</label><select class="form-select" id="stockStorage"></select></div>
                         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Quantity *</label><input
@@ -649,8 +742,13 @@
                                 type="date" class="form-control" id="stockPurchaseDate"></div>
                         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Expiry Date</label><input
                                 type="date" class="form-control" id="stockExpiry"></div>
-                        <div class="col-12"><label class="form-label fw-semibold">Notes</label><input type="text"
-                                class="form-control" id="stockNotes" placeholder="Optional"></div>
+                        <div class="col-12 col-md-4"><label class="form-label fw-semibold">Buy Rate (₹ /
+                                unit)</label><input type="number" class="form-control" id="stockRate"
+                                placeholder="e.g., 180" step="0.01" min="0"><small class="text-muted"
+                                style="font-size:0.7rem;">Save par Item Master ka Base
+                                Price update hoga</small></div>
+                        <div class="col-12 col-md-8"><label class="form-label fw-semibold">Notes</label><input
+                                type="text" class="form-control" id="stockNotes" placeholder="Optional"></div>
                     </div>
                 </div>
                 <div class="modal-footer"><button class="btn btn-outline-custom"
