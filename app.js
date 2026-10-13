@@ -1535,14 +1535,18 @@
         const folder = await create.json();
         return folder.id || null;
     }
-    window.uploadToGoogleDrive = async function () {
+    window.uploadToGoogleDriveOld = async function () {
         setDriveStatus('⏳ Backing up...');
         const token = await ensureGoogleAuth();
         if (!token) { setDriveStatus('❌ Auth failed', true); return; }
         const config = getDriveConfig();
         const data = getAllData();
         const now = new Date();
-        const fileName = `gharseva_backup_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}.json`;
+        // const fileName = `gharseva_backup_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}.json`;
+
+        const pad = n => String(n).padStart(2, '0');
+        const fileName = `gharseva_backup_${now.getFullYear()}_${pad(now.getMonth() + 1)}_${pad(now.getDate())}.json`;
+
         try {
             const folderId = await getOrCreateFolder(token, config.folderName);
             if (!folderId) { setDriveStatus('❌ Could not access folder', true); return; }
@@ -1566,10 +1570,115 @@
                     body
                 });
             }
-            if (resp.ok) { setDriveStatus(`✅ Backup complete (${fileName})`); showToast('Backed up!', 'success'); }
+            if (resp.ok) {
+                setDriveStatus(`✅ Backup complete (${fileName})`);
+                showToast('Backed up!', 'success');
+
+                // 🧹 Auto-cleanup: 7 din se purane backups delete (latest 3 hamesha safe)
+                try {
+                    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+                    const listRes = await fetch(
+                        `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime%20desc&pageSize=100&fields=files(id,name,createdTime)`,
+                        { headers: { Authorization: 'Bearer ' + token } }
+                    );
+                    const listData = await listRes.json();
+                    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+                    const backups = (listData.files || []).filter(f => f.name.startsWith('gharseva_backup_'));
+                    const oldFiles = backups.slice(3).filter(f =>
+                        f.name !== fileName && new Date(f.createdTime).getTime() < cutoff);
+                    for (const f of oldFiles) {
+                        const del = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
+                            method: 'DELETE',
+                            headers: { Authorization: 'Bearer ' + token }
+                        });
+                        if (!del.ok) console.warn('Delete failed:', f.name, del.status);
+                    }
+                    if (oldFiles.length) console.log(`🧹 Deleted ${oldFiles.length} old backup(s)`);
+                } catch (cleanupErr) {
+                    console.warn('Cleanup failed:', cleanupErr);
+                }
+            }
             else throw new Error('Upload failed: ' + resp.status);
         } catch (e) { setDriveStatus('❌ ' + e.message, true); }
     };
+    window.uploadToGoogleDrive = async function () {
+        setDriveStatus('⏳ Backing up...');
+        const token = await ensureGoogleAuth();
+        if (!token) { setDriveStatus('❌ Auth failed', true); return; }
+        const config = getDriveConfig();
+        const data = getAllData();
+        const now = new Date();
+        const fileName = `gharseva_backup_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}.json`;
+
+        // Backup retention (kitne din ke backup rakhne hain)
+        const KEEP_DAYS = 30;
+
+        try {
+            const folderId = await getOrCreateFolder(token, config.folderName);
+            if (!folderId) { setDriveStatus('❌ Could not access folder', true); return; }
+
+            const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${fileName}' and '${folderId}' in parents and trashed=false&fields=files(id)`, { headers: { Authorization: 'Bearer ' + token } });
+            const existing = await searchRes.json();
+            const content = JSON.stringify(data, null, 2);
+            let resp;
+
+            if (existing.files && existing.files.length) {
+                // Same day ka backup already exists → update (overwrite)
+                resp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existing.files[0].id}?uploadType=media`, {
+                    method: 'PATCH',
+                    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    body: content
+                });
+            } else {
+                // Naya backup file banao
+                const metadata = { name: fileName, parents: [folderId], mimeType: 'application/json' };
+                const boundary = 'gsv_' + Date.now();
+                const body = [`--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '', JSON.stringify(metadata), `--${boundary}`, 'Content-Type: application/json', '', content, `--${boundary}--`].join('\r\n');
+                resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                    method: 'POST',
+                    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
+                    body
+                });
+            }
+
+            if (resp.ok) {
+                setDriveStatus(`✅ Backup complete (${fileName})`);
+                showToast('Backed up!', 'success');
+
+                // 🧹 AUTO-CLEANUP: KEEP_DAYS se purane backups delete karo
+                try {
+                    const listRes = await fetch(
+                        `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and trashed=false&orderBy=createdTime desc&fields=files(id,name,createdTime)`,
+                        { headers: { Authorization: 'Bearer ' + token } }
+                    );
+                    const listData = await listRes.json();
+                    const cutoffTime = Date.now() - (KEEP_DAYS * 24 * 60 * 60 * 1000);
+                    const oldFiles = (listData.files || []).filter(f => new Date(f.createdTime).getTime() < cutoffTime);
+
+                    for (const f of oldFiles) {
+                        await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
+                            method: 'DELETE',
+                            headers: { Authorization: 'Bearer ' + token }
+                        });
+                    }
+
+                    if (oldFiles.length) {
+                        console.log(`🧹 Cleaned up ${oldFiles.length} old backup(s) — kept last ${KEEP_DAYS} days`);
+                        setDriveStatus(`✅ Backup complete · 🧹 ${oldFiles.length} old removed`);
+                    }
+                } catch (cleanupErr) {
+                    console.warn('Cleanup failed (backup succeeded):', cleanupErr);
+                    // Backup successful hai, cleanup fail hone se user ko disturb nahi karenge
+                }
+            } else {
+                throw new Error('Upload failed: ' + resp.status);
+            }
+        } catch (e) {
+            setDriveStatus('❌ ' + e.message, true);
+        }
+    };
+
+
     window.listGoogleDriveFiles = async function () {
         setDriveStatus('⏳ Loading files...');
         const token = await ensureGoogleAuth();
