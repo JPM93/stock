@@ -1018,6 +1018,7 @@
                 if (statusFilter === 'out') return st.label === 'Out of Stock';
                 if (statusFilter === 'expired') return st.label === 'Expired';
                 if (statusFilter === 'expiring') return st.label.startsWith('Expires in');
+                if (statusFilter === 'broken') return !!s.brokenPack;
                 return true;
             });
         }
@@ -1042,7 +1043,7 @@
                 <td><strong>${Number(s.quantity) || 0}</strong>${s.rate ? `<br><small class="text-muted">@ ${formatCurrency(s.rate)}</small>` : ''}</td>
                 <td>${s.expiryDate ? formatDate(s.expiryDate) : '<span class="text-muted">—</span>'}</td>
                 <td>${formatCurrency(value)}</td>
-                <td><span class="badge-soft ${status.cls}">${status.label}</span></td>
+                <td><span class="badge-soft ${status.cls}">${status.label}</span>${s.brokenPack ? '<br><span class="badge-soft orange mt-1"><i class="fas fa-box-open me-1"></i>Broken pack</span>' : ''}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-success me-1" onclick="quickAdjust('${s.id}', 1)"><i class="fas fa-plus"></i></button>
                     <button class="btn btn-sm btn-outline-warning me-1" onclick="quickAdjust('${s.id}', -1)"><i class="fas fa-minus"></i></button>
@@ -1070,6 +1071,7 @@
                 </div>
                 <div class="mobile-card-row"><span class="label"><i class="fas fa-warehouse me-1"></i>Storage</span><span>${storage ? escapeHtml(storage.name) : '—'}</span></div>
                 <div class="mobile-card-row"><span class="label">Quantity</span><span><strong>${Number(s.quantity) || 0}</strong> <small class="text-muted">(Alert ≤ ${min})</small></span></div>
+                ${s.brokenPack ? `<div class="mobile-card-row"><span class="label"><i class="fas fa-box-open me-1"></i>Broken Pack</span><span class="badge-soft orange">Available</span></div>` : ''}
                 ${s.rate ? `<div class="mobile-card-row"><span class="label">Buy Rate</span><span>${formatCurrency(s.rate)}</span></div>` : ''}
                 ${s.expiryDate ? `<div class="mobile-card-row"><span class="label">Expiry</span><span>${formatDate(s.expiryDate)}</span></div>` : ''}
                 <div class="mobile-card-row"><span class="label">Value</span><span><strong>${formatCurrency(value)}</strong></span></div>
@@ -1100,6 +1102,7 @@
         document.getElementById('stockRate').value = '';
         document.getElementById('stockExpiry').value = '';
         document.getElementById('stockNotes').value = '';
+        document.getElementById('stockBroken').checked = false;
         populateDropdown('stockItem', getItems().map(i => {
             const brand = getBrandById(i.brandId);
             return { id: i.id, label: `${brand ? brand.name + ' ' : ''}${i.itemName} (${i.size}${i.unit})` };
@@ -1117,6 +1120,7 @@
             document.getElementById('stockExpiry').value = s.expiryDate || '';
             document.getElementById('stockNotes').value = s.notes || '';
             document.getElementById('stockRate').value = (s.rate !== undefined && s.rate !== null) ? s.rate : '';
+            document.getElementById('stockBroken').checked = !!s.brokenPack;
         }
         new bootstrap.Modal(document.getElementById('stockModal')).show();
     };
@@ -1144,6 +1148,7 @@
             purchaseDate: document.getElementById('stockPurchaseDate').value || null,
             expiryDate: document.getElementById('stockExpiry').value || null,
             notes: document.getElementById('stockNotes').value.trim(),
+            brokenPack: document.getElementById('stockBroken').checked,
             createdAt: editId ? (stock.find(x => x.id === editId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
@@ -2035,24 +2040,25 @@
 
         stock: {
             title: 'Stock', file: 'stock',
-            headers: ['brand', 'itemName', 'size', 'unit', 'storage', 'quantity', 'rate', 'purchaseDate', 'expiryDate', 'notes'],
+            headers: ['brand', 'itemName', 'size', 'unit', 'storage', 'quantity', 'rate', 'purchaseDate', 'expiryDate', 'notes', 'brokenPack'],
             required: ['brand', 'itemname', 'size', 'unit', 'storage', 'quantity'],
             previewHead: ['Item', 'Storage', 'Qty', 'Rate', 'Expiry'],
             sample: [
-                ['Tata', 'Toor Dal', '1', 'kg', 'Storage Box', '3', '180', todayISO(), '', ''],
-                ['Amul', 'Milk', '1', 'l', 'Refrigerator', '2', '60', todayISO(), '', '']
+                ['Tata', 'Toor Dal', '1', 'kg', 'Storage Box', '3', '180', todayISO(), '', '', 'yes'],
+                ['Amul', 'Milk', '1', 'l', 'Refrigerator', '2', '60', todayISO(), '', '', 'no']
             ],
             notes: [
                 'item (brand + itemName + size + unit) aur <strong>storage</strong> pehle se Master me hone chahiye',
                 '<strong>rate</strong> (optional): import hone par Item Master ka Base Price latest purchaseDate wale rate se update hota hai',
                 'Dates: YYYY-MM-DD ya DD/MM/YYYY',
+                '<strong>brokenPack</strong> (optional): yes / no — broken/khula package available hai ya nahi',
                 'Bilkul same entry (item + storage + qty + dates) skip hogi'
             ],
             getAll: getStock,
             toRow: s => {
                 const item = getItemById(s.itemId); if (!item) return null;
                 const b = getBrandById(item.brandId), st = getStorageById(s.storageId);
-                return [b ? b.name : '', item.itemName, item.size, item.unit, st ? st.name : '', s.quantity, (s.rate === null || s.rate === undefined) ? '' : s.rate, s.purchaseDate || '', s.expiryDate || '', s.notes || ''];
+                return [b ? b.name : '', item.itemName, item.size, item.unit, st ? st.name : '', s.quantity, (s.rate === null || s.rate === undefined) ? '' : s.rate, s.purchaseDate || '', s.expiryDate || '', s.notes || '', s.brokenPack ? 'yes' : 'no'];
             },
             makeCtx: () => ({
                 brands: getBrands(), items: getItems(), storages: getStorages(),
@@ -2074,7 +2080,7 @@
                 if (ctx.seen.has(key)) return { dup: `${f.brand.name} ${f.item.itemName} @ ${st.name} already exists` };
                 ctx.seen.add(key);
                 return {
-                    data: { itemId: f.item.id, storageId: st.id, quantity: qty, rate, purchaseDate: pd || null, expiryDate: ed || null, notes: row.notes || '' },
+                    data: { itemId: f.item.id, storageId: st.id, quantity: qty, rate, purchaseDate: pd || null, expiryDate: ed || null, notes: row.notes || '', brokenPack: /^(yes|y|true|1)$/i.test(row.brokenpack || '') },
                     view: [`${f.brand.name} ${f.item.itemName} ${f.item.size}${f.item.unit}`, st.name, qty, rate !== null ? formatCurrency(rate) : '—', ed ? formatDate(ed) : '—']
                 };
             },

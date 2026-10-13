@@ -250,6 +250,7 @@
                         <option value="out">Out of Stock</option>
                         <option value="expired">Expired</option>
                         <option value="expiring">Expiring Soon</option>
+                        <option value="broken">Broken Pack Available</option>
                     </select>
                 </div>
 
@@ -749,6 +750,19 @@
                                 Price update hoga</small></div>
                         <div class="col-12 col-md-8"><label class="form-label fw-semibold">Notes</label><input
                                 type="text" class="form-control" id="stockNotes" placeholder="Optional"></div>
+                        <div class="col-12">
+                            <div class="form-check form-switch p-0 d-flex align-items-center gap-2"
+                                style="padding:10px 12px !important;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">
+                                <input class="form-check-input m-0" type="checkbox" role="switch" id="stockBroken"
+                                    style="width:2.4em;height:1.3em;flex-shrink:0;">
+                                <label class="form-check-label fw-semibold" for="stockBroken" style="cursor:pointer;">
+                                    <i class="fas fa-box-open me-1 text-warning"></i>Broken package available
+                                    <small class="text-muted d-block fw-normal" style="font-size:0.72rem;">Khula /
+                                        broken pack
+                                        maujood hai to ON rakho</small>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer"><button class="btn btn-outline-custom"
