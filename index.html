@@ -81,6 +81,147 @@
             padding: 0.65rem 1rem;
             font-size: 0.9rem;
         }
+
+        /* ═══ AUTOCOMPLETE ═══ */
+        .ac-wrap {
+            position: relative;
+        }
+
+        .ac-input {
+            width: 100%;
+            padding-right: 34px;
+        }
+
+        .ac-clear {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: #f1f5f9;
+            border-radius: 50%;
+            color: #64748b;
+            font-size: 0.72rem;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        .ac-clear:hover {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+
+        .ac-clear.show {
+            display: flex;
+        }
+
+        .ac-list {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            max-height: 260px;
+            overflow-y: auto;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+            z-index: 1080;
+            display: none;
+            padding: 4px;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        .ac-list.open {
+            display: block;
+        }
+
+        .ac-item {
+            padding: 9px 11px;
+            border-radius: 9px;
+            cursor: pointer;
+            font-size: 0.88rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            line-height: 1.3;
+        }
+
+        .ac-item:hover,
+        .ac-item.active {
+            background: #ecfdf5;
+            color: #065f46;
+        }
+
+        .ac-item .ac-main {
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .ac-item.active .ac-main {
+            color: #065f46;
+        }
+
+        .ac-item .ac-sub {
+            font-size: 0.74rem;
+            color: #64748b;
+        }
+
+        .ac-empty {
+            padding: 12px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.82rem;
+        }
+
+        /* Item row: stock quick-add button */
+        .item-stock-btn {
+            background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+            border: none;
+            color: #fff;
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .item-stock-btn:hover {
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+        }
+
+        /* Batch chip */
+        .batch-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            background: #e0f2fe;
+            color: #075985;
+            margin-top: 3px;
+            white-space: nowrap;
+        }
+
+        .batch-chip i {
+            font-size: 0.62rem;
+        }
+
+        /* Modal ke andar autocomplete list z-index safe */
+        .modal .ac-list {
+            z-index: 1090;
+        }
     </style>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
@@ -133,7 +274,7 @@
                         & Sync</button></div>
             </nav>
             <div class="sidebar-footer">
-                <small style="color:#64748b;font-size:0.7rem;">GharSeva v1.4</small>
+                <small style="color:#64748b;font-size:0.7rem;">GharSeva v1.5</small>
             </div>
         </aside>
 
@@ -263,6 +404,7 @@
                                     <th>Brand</th>
                                     <th>Storage</th>
                                     <th>Qty</th>
+                                    <th>Batch</th>
                                     <th>Expiry</th>
                                     <th>Value</th>
                                     <th>Status</th>
@@ -278,11 +420,6 @@
 
             <!-- Item Master -->
             <div class="section-page" id="page-items">
-                <!-- <div class="page-header">
-                    <h5 class="fw-bold mb-0">🏷️ Item Master</h5>
-                    <button class="btn btn-primary-custom btn-sm" onclick="openItemModal()"><i
-                            class="fas fa-plus me-1"></i>Add Item</button>
-                </div> -->
                 <div class="page-header">
                     <h5 class="fw-bold mb-0">🏷️ Item Master</h5>
                     <div class="d-flex gap-2 flex-wrap">
@@ -617,12 +754,30 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-12 col-md-6"><label class="form-label fw-semibold">Brand *</label><select
-                                class="form-select" id="itemBrand"></select></div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold">Brand *</label>
+                            <div class="ac-wrap">
+                                <input type="text" class="form-control ac-input" id="itemBrandAc"
+                                    placeholder="Type brand name..." autocomplete="off">
+                                <button type="button" class="ac-clear" id="itemBrandAcClear" tabindex="-1"
+                                    onclick="acClear('itemBrandAc')"><i class="fas fa-times"></i></button>
+                                <div class="ac-list" id="itemBrandAcList"></div>
+                            </div>
+                            <input type="hidden" id="itemBrand">
+                        </div>
                         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Item Name *</label><input
                                 type="text" class="form-control" id="itemName" placeholder="e.g., Salt, Milk"></div>
-                        <div class="col-12 col-md-6"><label class="form-label fw-semibold">Category *</label><select
-                                class="form-select" id="itemCategory"></select></div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold">Category *</label>
+                            <div class="ac-wrap">
+                                <input type="text" class="form-control ac-input" id="itemCategoryAc"
+                                    placeholder="Type category name..." autocomplete="off">
+                                <button type="button" class="ac-clear" id="itemCategoryAcClear" tabindex="-1"
+                                    onclick="acClear('itemCategoryAc')"><i class="fas fa-times"></i></button>
+                                <div class="ac-list" id="itemCategoryAcList"></div>
+                            </div>
+                            <input type="hidden" id="itemCategory">
+                        </div>
                         <div class="col-6 col-md-3"><label class="form-label fw-semibold">Size *</label><input
                                 type="number" class="form-control" id="itemSize" placeholder="1" step="0.01" min="0">
                         </div>
@@ -732,22 +887,35 @@
                 <div class="modal-body">
                     <input type="hidden" id="stockEditId">
                     <div class="row g-3">
-                        <div class="col-12 col-md-6"><label class="form-label fw-semibold">Item *</label><select
-                                class="form-select" id="stockItem" onchange="onStockItemChange()"></select></div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold">Item *</label>
+                            <div class="ac-wrap">
+                                <input type="text" class="form-control ac-input" id="stockItemAc"
+                                    placeholder="Type item name..." autocomplete="off">
+                                <button type="button" class="ac-clear" id="stockItemAcClear" tabindex="-1"
+                                    onclick="acClear('stockItemAc')"><i class="fas fa-times"></i></button>
+                                <div class="ac-list" id="stockItemAcList"></div>
+                            </div>
+                            <input type="hidden" id="stockItem">
+                        </div>
                         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Storage Location
                                 *</label><select class="form-select" id="stockStorage"></select></div>
                         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Quantity *</label><input
                                 type="number" class="form-control" id="stockQuantity" placeholder="e.g., 2" step="0.01"
                                 min="0"></div>
+                        <div class="col-12 col-md-4"><label class="form-label fw-semibold">Batch Number</label><input
+                                type="text" class="form-control" id="stockBatch" placeholder="e.g., BATCH-2024-01"
+                                autocomplete="off"><small class="text-muted" style="font-size:0.7rem;">Optional —
+                                manufacturer ka batch/lot number</small></div>
                         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Purchase Date</label><input
                                 type="date" class="form-control" id="stockPurchaseDate"></div>
                         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Expiry Date</label><input
                                 type="date" class="form-control" id="stockExpiry"></div>
-                        <div class="col-12 col-md-4"><label class="form-label fw-semibold">Buy Rate (₹ /
-                                unit)</label><input type="number" class="form-control" id="stockRate"
-                                placeholder="e.g., 180" step="0.01" min="0"><small class="text-muted"
-                                style="font-size:0.7rem;">Save par Item Master ka Base
-                                Price update hoga</small></div>
+                        <div class="col-12 col-md-4"><label class="form-label fw-semibold">Buy Rate (₹ / unit)</label>
+                            <input type="number" class="form-control" id="stockRate" placeholder="e.g., 180"
+                                step="0.01" min="0"><small class="text-muted" style="font-size:0.7rem;">Save par Item
+                                Master ka Base Price update hoga</small>
+                        </div>
                         <div class="col-12 col-md-8"><label class="form-label fw-semibold">Notes</label><input
                                 type="text" class="form-control" id="stockNotes" placeholder="Optional"></div>
                         <div class="col-12">
