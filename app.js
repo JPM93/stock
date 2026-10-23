@@ -26,11 +26,25 @@
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
     function safeImg(src) { return (typeof src === 'string' && /^data:image\//.test(src)) ? src.replace(/"/g, '') : ''; }
+    // function thumbHtml(item, size) {
+    //     const sz = size || 'md';
+    //     const src = item ? safeImg(item.image) : '';
+    //     if (src) return `<img class="item-thumb ${sz}" src="${src}" alt="this.onerror=null;this.src='./assets/images/no_image_found.png'" loading="lazy">`;
+    //     return `<span class="item-thumb item-thumb-ph ${sz}"><i class="fas fa-image"></i></span>`;
+    // }
     function thumbHtml(item, size) {
         const sz = size || 'md';
         const src = item ? safeImg(item.image) : '';
-        if (src) return `<img class="item-thumb ${sz}" src="${src}" alt="" loading="lazy">`;
-        return `<span class="item-thumb item-thumb-ph ${sz}"><i class="fas fa-image"></i></span>`;
+        const altText = item?.name || item?.title || 'thumbnail';
+
+        // if (src) {
+        return `<img class="item-thumb ${sz}" 
+                     src="${src}" 
+                     alt="${altText}" 
+                     loading="lazy"
+                     onerror="this.onerror=null;this.src='./assets/images/no_image_found.png'">`;
+        // }
+        // return `<span class="item-thumb item-thumb-ph ${sz}"><i class="fas fa-image"></i></span>`;
     }
     // Stock purchase rate -> Item Master "Base Price" (latest buy). Purani date wali entry newer rate ko override nahi karegi.
     function applyBuyRate(items, itemId, rate, dateStr) {
@@ -829,14 +843,44 @@
 
     // ── Item photo (256x256 base64) ──
     let __itemImage = '';
+    // function setItemImage(dataUrl) {
+    //     __itemImage = dataUrl || '';
+    //     const prev = document.getElementById('itemImagePreview');
+    //     const rm = document.getElementById('itemImageRemoveBtn');
+    //     const info = document.getElementById('itemImageInfo');
+    //     if (prev) prev.innerHTML = __itemImage ? `<img src="${safeImg(__itemImage)}" alt="this.onerror=null;this.src='./assets/images/no_image_found.png'">` : '<i class="fas fa-image"></i>';
+    //     if (rm) rm.style.display = __itemImage ? '' : 'none';
+    //     if (info) info.textContent = __itemImage ? `256×256 · ~${Math.round(__itemImage.length * 0.75 / 1024)} KB` : 'Koi photo nahi (optional)';
+    // }
     function setItemImage(dataUrl) {
         __itemImage = dataUrl || '';
         const prev = document.getElementById('itemImagePreview');
         const rm = document.getElementById('itemImageRemoveBtn');
         const info = document.getElementById('itemImageInfo');
-        if (prev) prev.innerHTML = __itemImage ? `<img src="${safeImg(__itemImage)}" alt="">` : '<i class="fas fa-image"></i>';
+
+        if (prev) {
+            if (__itemImage) {
+                const safe = safeImg(__itemImage);
+                prev.innerHTML = `<img src="${safe}" 
+                alt="Selected item image"
+                onerror="this.onerror=null;this.src='./assets/images/no_image_found.png'">`;
+            } else {
+                prev.innerHTML = '<i class="fas fa-image"></i>';
+            }
+        }
+
         if (rm) rm.style.display = __itemImage ? '' : 'none';
-        if (info) info.textContent = __itemImage ? `256×256 · ~${Math.round(__itemImage.length * 0.75 / 1024)} KB` : 'Koi photo nahi (optional)';
+
+        if (info) {
+            if (__itemImage) {
+                const isDataUrl = __itemImage.startsWith('data:');
+                const b64 = isDataUrl ? (__itemImage.split(',')[1] || '') : '';
+                const kb = Math.round(b64.length * 0.75 / 1024);
+                info.textContent = isDataUrl ? `~${kb} KB` : 'Image selected';
+            } else {
+                info.textContent = 'Koi photo nahi (optional)';
+            }
+        }
     }
     window.onItemImagePicked = function (input) {
         const file = input.files && input.files[0];
