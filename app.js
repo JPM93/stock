@@ -35,7 +35,7 @@
     function thumbHtml(item, size) {
         const sz = size || 'md';
         const src = item ? safeImg(item.image) : '';
-        const altText = item?.name || item?.title || 'thumbnail';
+        const altText = escapeHtml(item?.itemName || item?.name || item?.title || 'thumbnail').replace(/"/g, '&quot;');
 
         // if (src) {
         return `<img class="item-thumb ${sz}" 
@@ -3051,6 +3051,39 @@
         __ioParsed = null;
         ioRefreshAll();
     };
+
+    // ═══ Image full view (lightbox) ═══
+    function openImageViewer(src, caption) {
+        const lb = document.getElementById('imgLightbox'); if (!lb) return;
+        document.getElementById('imgLightboxImg').src = src;
+        document.getElementById('imgLightboxCaption').textContent = caption || '';
+        lb.classList.add('show'); lb.setAttribute('aria-hidden', 'false');
+    }
+    function closeImageViewer() {
+        const lb = document.getElementById('imgLightbox'); if (!lb || !lb.classList.contains('show')) return false;
+        lb.classList.remove('show'); lb.setAttribute('aria-hidden', 'true');
+        document.getElementById('imgLightboxImg').removeAttribute('src');
+        return true;
+    }
+    window.openImageViewer = openImageViewer;
+    window.closeImageViewer = closeImageViewer;
+    // Item thumbnails + modal preview par click → full view (capture: row/card ke onclick ko na chhede)
+    document.addEventListener('click', function (e) {
+        const lb = document.getElementById('imgLightbox');
+        if (lb && lb.contains(e.target)) {
+            if (e.target.id !== 'imgLightboxImg') closeImageViewer();   // photo ko chhodkar kahin bhi click = close
+            return;
+        }
+        const img = e.target && e.target.closest ? e.target.closest('img.item-thumb, #itemImagePreview img') : null;
+        if (!img) return;
+        const src = img.getAttribute('src') || '';
+        if (!/^data:image\//.test(src)) return;     // placeholder / no_image par kuch nahi
+        e.preventDefault(); e.stopPropagation();
+        openImageViewer(src, img.getAttribute('alt') || '');
+    }, true);
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && closeImageViewer()) e.stopPropagation();
+    }, true);
 
     // ═══ Init ═══
     function init() {

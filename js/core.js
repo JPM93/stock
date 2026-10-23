@@ -35,7 +35,8 @@
     function thumbHtml(item, size) {
         const sz = size || 'md';
         const src = item ? safeImg(item.image) : '';
-        const altText = item?.name || item?.title || 'thumbnail';
+        // const altText = item?.name || item?.title || 'thumbnail';
+        const altText = escapeHtml(item?.itemName || item?.name || item?.title || 'thumbnail').replace(/"/g, '&quot;');
         return `<img class="item-thumb ${sz}" 
                      src="${src}" 
                      alt="${altText}" 
