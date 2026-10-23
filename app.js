@@ -101,7 +101,7 @@
         return {
             storages: getStorages(), categories: getCategories(), brands: getBrands(),
             sellers: getSellers(), items: getItems(), stock: getStock(), shopping: getShopping(),
-            exportDate: new Date().toISOString(), version: '1.4'
+            exportDate: new Date().toISOString(), version: '1.5'
         };
     }
     function restoreData(d) {
@@ -119,7 +119,6 @@
     function getSellerById(id) { return getSellers().find(s => s.id === id); }
     let __itemsCache = null;
     function getItemById(id) {
-        // Photos (base64) items JSON ko bhari bana dete hain — isliye map cache karte hain
         if (!__itemsCache) { __itemsCache = new Map(); getItems().forEach(i => __itemsCache.set(i.id, i)); }
         return __itemsCache.get(id);
     }
@@ -127,7 +126,6 @@
     function getMinAlert(item) { return item ? (Number(item.minAlert) || 0) : 1; }
     function getSellingPrice(item) {
         if (!item) return 0;
-        // If item has sellers, use cheapest seller price (best price)
         const best = getBestSellerPrice(item);
         if (best) return best.price;
         if (item.price !== undefined && item.price !== null && item.price !== '') return Number(item.price) || 0;
@@ -153,6 +151,205 @@
         return item.sellers.find(s => s.sellerId === sellerId);
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // ═══ AUTOCOMPLETE MODULE ═══
+    // ═══════════════════════════════════════════════════════════
+    const __acRegistry = {}; // inputId -> { config, activeIndex, filtered }
+
+    function acSetup(inputId, config) {
+        // config: { getSource: () => [{id,label,sub}], onSelect: (id,item)=>void, onClear: ()=>void }
+        __acRegistry[inputId] = { config, activeIndex: -1, filtered: [] };
+        const input = document.getElementById(inputId);
+        const list = document.getElementById(inputId + 'List');
+        const clearBtn = document.getElementById(inputId + 'Clear');
+        if (!input || !list) return;
+
+        // Don't re-attach listeners on repeated setup — mark once
+        if (!input.dataset.acBound) {
+            input.dataset.acBound = '1';
+            input.addEventListener('input', () => acFilter(inputId));
+            input.addEventListener('focus', () => {
+                // Only auto-open if there's text or empty to show all
+                acFilter(inputId, true);
+            });
+            input.addEventListener('keydown', (e) => acKeydown(inputId, e));
+            input.addEventListener('blur', () => {
+                // Delay so click on list item registers
+                setTimeout(() => acClose(inputId), 200);
+            });
+        }
+        if (clearBtn) clearBtn.classList.toggle('show', !!input.value);
+    }
+
+    function acFilter(inputId, forceOpen) {
+        const reg = __acRegistry[inputId]; if (!reg) return;
+        const input = document.getElementById(inputId);
+        const list = document.getElementById(inputId + 'List');
+        const clearBtn = document.getElementById(inputId + 'Clear');
+        if (!input || !list) return;
+
+        const q = (input.value || '').trim().toLowerCase();
+        const all = reg.config.getSource() || [];
+
+        let filtered = all;
+        if (q) {
+            filtered = all.filter(o => {
+                const main = (o.label || '').toLowerCase();
+                const sub = (o.sub || '').toLowerCase();
+                return main.includes(q) || sub.includes(q);
+            });
+            // Rank: startswith first, then includes
+            filtered.sort((a, b) => {
+                const al = (a.label || '').toLowerCase(), bl = (b.label || '').toLowerCase();
+                const as = al.startsWith(q) ? 0 : 1;
+                const bs = bl.startsWith(q) ? 0 : 1;
+                if (as !== bs) return as - bs;
+                return al.localeCompare(bl);
+            });
+        }
+
+        reg.filtered = filtered;
+        reg.activeIndex = -1;
+
+        // Render
+        if (!filtered.length) {
+            list.innerHTML = q
+                ? `<div class="ac-empty"><i class="fas fa-search me-1"></i>Koi match nahi mila</div>`
+                : `<div class="ac-empty">Type karke search karein</div>`;
+        } else {
+            list.innerHTML = filtered.slice(0, 50).map((o, i) => `
+                <div class="ac-item" data-index="${i}" onmousedown="acSelect('${inputId}', ${i})">
+                    <div style="flex:1;min-width:0;">
+                        <div class="ac-main">${escapeHtml(o.label || '')}</div>
+                        ${o.sub ? `<div class="ac-sub">${escapeHtml(o.sub)}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        if (forceOpen || q.length > 0) {
+            list.classList.add('open');
+        }
+        if (clearBtn) clearBtn.classList.toggle('show', !!input.value);
+    }
+
+    function acClose(inputId) {
+        const list = document.getElementById(inputId + 'List');
+        if (list) list.classList.remove('open');
+        const reg = __acRegistry[inputId];
+        if (reg) reg.activeIndex = -1;
+    }
+
+    function acKeydown(inputId, e) {
+        const reg = __acRegistry[inputId]; if (!reg) return;
+        const list = document.getElementById(inputId + 'List');
+        const items = list.querySelectorAll('.ac-item');
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (!list.classList.contains('open')) { acFilter(inputId, true); return; }
+            reg.activeIndex = Math.min(reg.activeIndex + 1, items.length - 1);
+            acHighlight(items, reg.activeIndex);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            reg.activeIndex = Math.max(reg.activeIndex - 1, 0);
+            acHighlight(items, reg.activeIndex);
+        } else if (e.key === 'Enter') {
+            if (list.classList.contains('open') && reg.activeIndex >= 0) {
+                e.preventDefault();
+                acSelect(inputId, reg.activeIndex);
+            }
+        } else if (e.key === 'Escape') {
+            acClose(inputId);
+        }
+    }
+
+    function acHighlight(items, idx) {
+        items.forEach((it, i) => it.classList.toggle('active', i === idx));
+        if (items[idx]) items[idx].scrollIntoView({ block: 'nearest' });
+    }
+
+    function acSelect(inputId, idx) {
+        const reg = __acRegistry[inputId]; if (!reg) return;
+        const o = reg.filtered[idx];
+        if (!o) return;
+        const input = document.getElementById(inputId);
+        if (input) input.value = o.label;
+        acClose(inputId);
+        const clearBtn = document.getElementById(inputId + 'Clear');
+        if (clearBtn) clearBtn.classList.add('show');
+        if (reg.config.onSelect) reg.config.onSelect(o.id, o);
+    }
+
+    function acClear(inputId) {
+        const reg = __acRegistry[inputId]; if (!reg) return;
+        const input = document.getElementById(inputId);
+        if (input) { input.value = ''; input.focus(); }
+        const clearBtn = document.getElementById(inputId + 'Clear');
+        if (clearBtn) clearBtn.classList.remove('show');
+        acClose(inputId);
+        if (reg.config.onClear) reg.config.onClear();
+    }
+
+    function acSetValue(inputId, id) {
+        const reg = __acRegistry[inputId]; if (!reg) return;
+        const all = reg.config.getSource() || [];
+        const o = all.find(x => x.id === id);
+        const input = document.getElementById(inputId);
+        if (input) input.value = o ? o.label : '';
+        const clearBtn = document.getElementById(inputId + 'Clear');
+        if (clearBtn) clearBtn.classList.toggle('show', !!input.value);
+        if (o && reg.config.onSelect) reg.config.onSelect(o.id, o);
+    }
+
+    // Expose for inline onclick handlers
+    window.acSelect = acSelect;
+    window.acClear = acClear;
+
+    // ═══════════════════════════════════════════════════════════
+    // ═══ AUTOCOMPLETE CONFIGS ═══
+    // ═══════════════════════════════════════════════════════════
+
+    // Brand autocomplete (Item Modal)
+    function setupItemBrandAc() {
+        acSetup('itemBrandAc', {
+            getSource: () => getBrands().map(b => ({ id: b.id, label: b.name, sub: b.description || '' })),
+            onSelect: (id) => { document.getElementById('itemBrand').value = id; },
+            onClear: () => { document.getElementById('itemBrand').value = ''; }
+        });
+    }
+
+    // Category autocomplete (Item Modal)
+    function setupItemCategoryAc() {
+        acSetup('itemCategoryAc', {
+            getSource: () => getCategories().map(c => ({ id: c.id, label: c.name, sub: c.description || '' })),
+            onSelect: (id) => { document.getElementById('itemCategory').value = id; },
+            onClear: () => { document.getElementById('itemCategory').value = ''; }
+        });
+    }
+
+    // Stock Item autocomplete
+    function setupStockItemAc() {
+        acSetup('stockItemAc', {
+            getSource: () => getItems().map(i => {
+                const brand = getBrandById(i.brandId);
+                return {
+                    id: i.id,
+                    label: `${brand ? brand.name + ' ' : ''}${i.itemName}`,
+                    sub: `${i.size} ${i.unit}${brand ? ' · ' + brand.name : ''}`
+                };
+            }),
+            onSelect: (id) => {
+                document.getElementById('stockItem').value = id;
+                onStockItemChange();
+            },
+            onClear: () => {
+                document.getElementById('stockItem').value = '';
+                onStockItemChange();
+            }
+        });
+    }
+
     // ─── Mobile Drawer ────────────────────────────────
     function openSidebar() {
         const sb = document.getElementById('sidebar'), ov = document.getElementById('sidebarOverlay');
@@ -169,7 +366,6 @@
 
     // ─── Navigation ──────────────────────────────────
     function navigateTo(page) {
-        // Update mobile topbar title
         const mobileTitle = document.getElementById('mobileBrandTitle');
         const mobileTitles = {
             dashboard: '📊 Dashboard', stock: '📦 Stock', items: '🏷️ Items',
@@ -178,14 +374,12 @@
         };
         if (mobileTitle) mobileTitle.textContent = mobileTitles[page] || '🛒 GharSeva';
 
-        // Update bottom nav active state
         const bottomNavMap = { dashboard: 'dashboard', stock: 'stock', items: 'items', shopping: 'shopping' };
         document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
         if (bottomNavMap[page]) {
             const btn = document.querySelector(`.bottom-nav-item[data-nav="${bottomNavMap[page]}"]`);
             if (btn) btn.classList.add('active');
         } else {
-            // Page not in bottom nav → highlight "More"
             const moreBtn = document.querySelector('.bottom-nav-item[data-nav="more"]');
             if (moreBtn) moreBtn.classList.add('active');
         }
@@ -248,7 +442,6 @@
         const shoppingActive = getShopping().filter(s => !s.done).length;
         document.getElementById('shoppingBadgeCount').textContent = shoppingActive;
 
-        // Update bottom nav badges
         const bnStock = document.getElementById('bnStockBadge');
         const bnShopping = document.getElementById('bnShoppingBadge');
         if (bnStock) {
@@ -440,7 +633,6 @@
         refreshSellers();
     };
     window.deleteSeller = function (id) {
-        // Check usage in items
         let used = 0;
         getItems().forEach(i => { if ((i.sellers || []).some(s => s.sellerId === id)) used++; });
         if (used) { showToast(`Cannot delete — ${used} item(s) use this seller`, 'error'); return; }
@@ -456,7 +648,6 @@
         navigateTo('items');
     };
 
-    // Quick add seller (from inside item modal)
     window.openQuickSellerModal = function (callback) {
         document.getElementById('quickSellerName').value = '';
         document.getElementById('quickSellerDescription').value = '';
@@ -741,7 +932,7 @@
             return;
         }
 
-        // Desktop
+        // Desktop — added "+Stock" button per row
         tbody.innerHTML = items.map(i => {
             const cat = getCategoryById(i.categoryId);
             const brand = getBrandById(i.brandId);
@@ -760,13 +951,14 @@
                 <td>${bestSeller ? `<span class="seller-chip best"><span class="seller-name">${escapeHtml(bestSeller.name)}</span> <span class="seller-price">${formatCurrency(best.price)}</span>${bestDiscount ? ` <span class="seller-disc">${bestDiscount}%</span>` : ''}</span>` : '<span class="text-muted small">No sellers</span>'}</td>
                 <td><span class="badge-soft orange">≤ ${getMinAlert(i)}</span></td>
                 <td>
+                    <button class="btn btn-sm item-stock-btn me-1" onclick="openStockModal('add',null,'${i.id}')" title="Add stock"><i class="fas fa-plus"></i></button>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="openItemModal('edit','${i.id}')"><i class="fas fa-edit"></i></button>
                     <button class="btn btn-sm btn-outline-danger" onclick="deleteItem('${i.id}')"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>`;
         }).join('');
 
-        // Mobile
+        // Mobile — added "+Stock" button
         mob.innerHTML = items.map(i => {
             const cat = getCategoryById(i.categoryId);
             const brand = getBrandById(i.brandId);
@@ -799,6 +991,7 @@
                 ${sellerChips ? `<div style="margin-top:6px;"><small class="text-muted d-block mb-1">Sellers:</small>${sellerChips}</div>` : ''}
                 ${i.notes ? `<div class="mobile-card-row" style="margin-top:6px;"><span class="label">Notes</span><span>${escapeHtml(i.notes)}</span></div>` : ''}
                 <div class="mobile-card-actions">
+                    <button class="btn btn-outline-success" onclick="openStockModal('add',null,'${i.id}')"><i class="fas fa-plus me-1"></i>Stock</button>
                     <button class="btn btn-outline-primary" onclick="openItemModal('edit','${i.id}')"><i class="fas fa-edit me-1"></i>Edit</button>
                     <button class="btn btn-outline-danger" onclick="deleteItem('${i.id}')"><i class="fas fa-trash me-1"></i>Delete</button>
                 </div>
@@ -817,8 +1010,10 @@
         document.getElementById('itemPrice').value = '';
         document.getElementById('itemMinAlert').value = '1';
         document.getElementById('itemNotes').value = '';
-        populateDropdown('itemBrand', getBrands().map(b => ({ id: b.id, label: b.name })), false);
-        populateDropdown('itemCategory', getCategories().map(c => ({ id: c.id, label: c.name })), false);
+        document.getElementById('itemBrand').value = '';
+        document.getElementById('itemCategory').value = '';
+        document.getElementById('itemBrandAc').value = '';
+        document.getElementById('itemCategoryAc').value = '';
         document.getElementById('sellerPricingContainer').innerHTML = '';
         setItemImage('');
 
@@ -838,6 +1033,15 @@
             setItemImage(safeImg(i.image));
             (i.sellers || []).forEach(sp => addSellerPriceRow(sp.sellerId, sp.price));
         }
+
+        // Setup autocompletes & set values
+        setupItemBrandAc();
+        setupItemCategoryAc();
+        const bId = document.getElementById('itemBrand').value;
+        const cId = document.getElementById('itemCategory').value;
+        if (bId) acSetValue('itemBrandAc', bId); else { acClear('itemBrandAc'); }
+        if (cId) acSetValue('itemCategoryAc', cId); else { acClear('itemCategoryAc'); }
+
         new bootstrap.Modal(document.getElementById('itemModal')).show();
     };
 
@@ -893,13 +1097,11 @@
     };
     window.removeItemImage = function () { setItemImage(''); };
 
-    // Add seller price row (inside item modal)
     window.addSellerPriceRow = function (sellerId, price) {
         const container = document.getElementById('sellerPricingContainer');
         if (!container) return;
         const sellers = getSellers();
         if (!sellers.length) {
-            // Auto-open quick add
             window.openQuickSellerModal((newId) => {
                 addSellerPriceRow(newId, price);
             });
@@ -927,12 +1129,10 @@
         if (sellerId) sel.value = sellerId;
         if (price !== undefined && price !== null && price !== '') pIn.value = price;
 
-        // Handle "Add new seller" option
         sel.addEventListener('change', function () {
             if (this.value === '__add_new__') {
                 this.value = '';
                 window.openQuickSellerModal((newId) => {
-                    // Refresh this dropdown
                     const freshSellers = getSellers();
                     const newOpts = freshSellers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
                     this.innerHTML = `<option value="">-- Select Seller --</option>${newOpts}<option value="__add_new__">➕ Add New Seller...</option>`;
@@ -964,7 +1164,6 @@
             badge.className = 'sp-discount discount-badge text-muted';
         }
     };
-    // Recalc all seller rows when MRP changes
     document.addEventListener('input', function (e) {
         if (e.target && e.target.id === 'itemMrp') {
             document.querySelectorAll('.seller-price-row').forEach(r => recalcSellerRow(r.id));
@@ -976,8 +1175,8 @@
         if (!itemName) { showToast('Item name required', 'warning'); return; }
         const brandId = document.getElementById('itemBrand').value;
         const categoryId = document.getElementById('itemCategory').value;
-        if (!brandId) { showToast('Brand required', 'warning'); return; }
-        if (!categoryId) { showToast('Category required', 'warning'); return; }
+        if (!brandId) { showToast('Brand required — list se select karein', 'warning'); return; }
+        if (!categoryId) { showToast('Category required — list se select karein', 'warning'); return; }
         const size = parseFloat(document.getElementById('itemSize').value);
         if (!size || size <= 0) { showToast('Valid size required', 'warning'); return; }
         const mrp = parseFloat(document.getElementById('itemMrp').value);
@@ -987,7 +1186,6 @@
         const minAlert = parseFloat(document.getElementById('itemMinAlert').value);
         if (isNaN(minAlert) || minAlert < 0) { showToast('Valid min alert required', 'warning'); return; }
 
-        // Collect seller pricing
         const sellers = [];
         const seen = new Set();
         document.querySelectorAll('.seller-price-row').forEach(row => {
@@ -1069,7 +1267,7 @@
         stock = stock.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
 
         if (!stock.length) {
-            tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="fas fa-boxes-stacked"></i><p>No stock entries found.</p></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><i class="fas fa-boxes-stacked"></i><p>No stock entries found.</p></td></tr>';
             mob.innerHTML = '<div class="empty-state"><i class="fas fa-boxes-stacked"></i><p>No stock entries found.</p></div>';
             return;
         }
@@ -1085,6 +1283,7 @@
                 <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td>${storage ? `<i class="fas fa-warehouse text-muted me-1"></i>${escapeHtml(storage.name)}` : '<span class="text-muted">—</span>'}</td>
                 <td><strong>${Number(s.quantity) || 0}</strong>${s.rate ? `<br><small class="text-muted">@ ${formatCurrency(s.rate)}</small>` : ''}</td>
+                <td>${s.batchNumber ? `<span class="batch-chip"><i class="fas fa-barcode"></i>${escapeHtml(s.batchNumber)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td>${s.expiryDate ? formatDate(s.expiryDate) : '<span class="text-muted">—</span>'}</td>
                 <td>${formatCurrency(value)}</td>
                 <td><span class="badge-soft ${status.cls}">${status.label}</span>${s.brokenPack ? '<br><span class="badge-soft orange mt-1"><i class="fas fa-box-open me-1"></i>Broken pack</span>' : ''}</td>
@@ -1115,6 +1314,7 @@
                 </div>
                 <div class="mobile-card-row"><span class="label"><i class="fas fa-warehouse me-1"></i>Storage</span><span>${storage ? escapeHtml(storage.name) : '—'}</span></div>
                 <div class="mobile-card-row"><span class="label">Quantity</span><span><strong>${Number(s.quantity) || 0}</strong> <small class="text-muted">(Alert ≤ ${min})</small></span></div>
+                ${s.batchNumber ? `<div class="mobile-card-row"><span class="label"><i class="fas fa-barcode me-1"></i>Batch</span><span class="batch-chip">${escapeHtml(s.batchNumber)}</span></div>` : ''}
                 ${s.brokenPack ? `<div class="mobile-card-row"><span class="label"><i class="fas fa-box-open me-1"></i>Broken Pack</span><span class="badge-soft orange">Available</span></div>` : ''}
                 ${s.rate ? `<div class="mobile-card-row"><span class="label">Buy Rate</span><span>${formatCurrency(s.rate)}</span></div>` : ''}
                 ${s.expiryDate ? `<div class="mobile-card-row"><span class="label">Expiry</span><span>${formatDate(s.expiryDate)}</span></div>` : ''}
@@ -1136,7 +1336,8 @@
         saveStock(stock);
         refreshStock(); refreshDashboard(); updateBadges();
     };
-    window.openStockModal = function (mode, id) {
+    // openStockModal(mode, id, preselectedItemId)
+    window.openStockModal = function (mode, id, preselectedItemId) {
         if (!getItems().length) { showToast('Please add an item first', 'warning'); return; }
         if (!getStorages().length) { showToast('Please add a storage location first', 'warning'); return; }
         document.getElementById('stockEditId').value = '';
@@ -1146,25 +1347,38 @@
         document.getElementById('stockRate').value = '';
         document.getElementById('stockExpiry').value = '';
         document.getElementById('stockNotes').value = '';
+        document.getElementById('stockBatch').value = '';
         document.getElementById('stockBroken').checked = false;
-        populateDropdown('stockItem', getItems().map(i => {
-            const brand = getBrandById(i.brandId);
-            return { id: i.id, label: `${brand ? brand.name + ' ' : ''}${i.itemName} (${i.size}${i.unit})` };
-        }), false);
+        document.getElementById('stockItem').value = '';
+        document.getElementById('stockItemAc').value = '';
         populateDropdown('stockStorage', getStorages().map(s => ({ id: s.id, label: s.name })), false);
-        if (!(mode === 'edit' && id)) onStockItemChange();
+
+        // Setup item autocomplete for this modal
+        setupStockItemAc();
+
         if (mode === 'edit' && id) {
             const s = getStock().find(x => x.id === id); if (!s) return;
             document.getElementById('stockEditId').value = s.id;
             document.getElementById('stockModalTitle').textContent = 'Edit Stock';
             document.getElementById('stockItem').value = s.itemId;
+            acSetValue('stockItemAc', s.itemId);
             document.getElementById('stockStorage').value = s.storageId;
             document.getElementById('stockQuantity').value = s.quantity;
+            document.getElementById('stockBatch').value = s.batchNumber || '';
             document.getElementById('stockPurchaseDate').value = s.purchaseDate || '';
             document.getElementById('stockExpiry').value = s.expiryDate || '';
             document.getElementById('stockNotes').value = s.notes || '';
             document.getElementById('stockRate').value = (s.rate !== undefined && s.rate !== null) ? s.rate : '';
             document.getElementById('stockBroken').checked = !!s.brokenPack;
+        } else if (preselectedItemId) {
+            const it = getItemById(preselectedItemId);
+            if (it) {
+                document.getElementById('stockItem').value = preselectedItemId;
+                acSetValue('stockItemAc', preselectedItemId);
+                onStockItemChange();
+            }
+        } else {
+            onStockItemChange();
         }
         new bootstrap.Modal(document.getElementById('stockModal')).show();
     };
@@ -1177,7 +1391,7 @@
     window.saveStock = function () {
         const itemId = document.getElementById('stockItem').value;
         const storageId = document.getElementById('stockStorage').value;
-        if (!itemId) { showToast('Item required', 'warning'); return; }
+        if (!itemId) { showToast('Item required — list se select karein', 'warning'); return; }
         if (!storageId) { showToast('Storage required', 'warning'); return; }
         const qty = parseFloat(document.getElementById('stockQuantity').value);
         if (isNaN(qty) || qty < 0) { showToast('Valid quantity required', 'warning'); return; }
@@ -1189,6 +1403,7 @@
         const data = {
             id: editId || uid('stk'),
             itemId, storageId, quantity: qty, rate,
+            batchNumber: document.getElementById('stockBatch').value.trim() || '',
             purchaseDate: document.getElementById('stockPurchaseDate').value || null,
             expiryDate: document.getElementById('stockExpiry').value || null,
             notes: document.getElementById('stockNotes').value.trim(),
@@ -1199,7 +1414,6 @@
         if (editId) { const i = stock.findIndex(x => x.id === editId); if (i >= 0) stock[i] = data; }
         else stock.push(data);
         if (!saveStock(stock)) return;
-        // Buy rate -> Item Master Base Price (latest buy)
         let priceMsg = '';
         if (rate !== null && rate > 0) {
             const allItems = getItems();
@@ -1274,7 +1488,6 @@
         document.getElementById('shoppingNotes').value = '';
         document.getElementById('shoppingTotalPreview').textContent = '₹0';
 
-        // Populate item dropdown (from Item Master)
         const items = getItems();
         const itemOpts = items.map(i => {
             const brand = getBrandById(i.brandId);
@@ -1283,7 +1496,6 @@
         const itemSel = document.getElementById('shoppingItemSelect');
         itemSel.innerHTML = '<option value="">-- Select Item --</option>' + itemOpts;
 
-        // Seller dropdown will be populated after item is selected
         document.getElementById('shoppingSellerSelect').innerHTML = '<option value="">-- Select Item first --</option>';
 
         if (mode === 'edit' && id) {
@@ -1325,11 +1537,9 @@
         const item = getItemById(itemId); if (!item) return;
         unitIn.value = item.unit || '';
 
-        // Populate sellers from item's seller list
         const itemSellers = (item.sellers || []);
         if (!itemSellers.length) {
             sellerSel.innerHTML = '<option value="">-- No sellers for this item --</option>';
-            // Fallback to base price
             priceIn.value = item.price || item.mrp || '';
         } else {
             const opts = itemSellers.map(sp => {
@@ -1340,7 +1550,6 @@
             }).join('');
             sellerSel.innerHTML = '<option value="">-- Select Seller --</option>' + opts;
 
-            // Auto-select best seller
             const best = getBestSellerPrice(item);
             if (best) {
                 sellerSel.value = best.sellerId;
@@ -1371,7 +1580,6 @@
         document.getElementById('shoppingTotalPreview').textContent = formatCurrency(total);
     };
 
-    // Attach qty change listener
     document.addEventListener('input', function (e) {
         if (e.target && e.target.id === 'shoppingQty') recalcShoppingTotal();
     });
@@ -1384,7 +1592,6 @@
         if (isNaN(qty) || qty <= 0) { showToast('Valid quantity required', 'warning'); return; }
         const price = parseFloat(document.getElementById('shoppingPrice').value) || 0;
         const sellerId = document.getElementById('shoppingSellerSelect').value || null;
-        const seller = sellerId ? getSellerById(sellerId) : null;
         const brand = getBrandById(item.brandId);
 
         const editId = document.getElementById('shoppingEditId').value;
@@ -1513,7 +1720,7 @@
         }
     }
 
-    // ═══ Google Drive (same as before) ═══
+    // ═══ Google Drive ═══
     function getDriveConfig() { return load('gdrive_config', { clientId: '', folderName: '' }); }
     window.saveGoogleDriveConfig = function () {
         const clientId = document.getElementById('gdriveClientId').value.trim();
@@ -1584,72 +1791,6 @@
         const folder = await create.json();
         return folder.id || null;
     }
-    window.uploadToGoogleDriveOld = async function () {
-        setDriveStatus('⏳ Backing up...');
-        const token = await ensureGoogleAuth();
-        if (!token) { setDriveStatus('❌ Auth failed', true); return; }
-        const config = getDriveConfig();
-        const data = getAllData();
-        const now = new Date();
-        // const fileName = `gharseva_backup_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}.json`;
-
-        const pad = n => String(n).padStart(2, '0');
-        const fileName = `gharseva_backup_${now.getFullYear()}_${pad(now.getMonth() + 1)}_${pad(now.getDate())}.json`;
-
-        try {
-            const folderId = await getOrCreateFolder(token, config.folderName);
-            if (!folderId) { setDriveStatus('❌ Could not access folder', true); return; }
-            const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${fileName}' and '${folderId}' in parents and trashed=false&fields=files(id)`, { headers: { Authorization: 'Bearer ' + token } });
-            const existing = await searchRes.json();
-            const content = JSON.stringify(data, null, 2);
-            let resp;
-            if (existing.files && existing.files.length) {
-                resp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existing.files[0].id}?uploadType=media`, {
-                    method: 'PATCH',
-                    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-                    body: content
-                });
-            } else {
-                const metadata = { name: fileName, parents: [folderId], mimeType: 'application/json' };
-                const boundary = 'gsv_' + Date.now();
-                const body = [`--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '', JSON.stringify(metadata), `--${boundary}`, 'Content-Type: application/json', '', content, `--${boundary}--`].join('\r\n');
-                resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-                    method: 'POST',
-                    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
-                    body
-                });
-            }
-            if (resp.ok) {
-                setDriveStatus(`✅ Backup complete (${fileName})`);
-                showToast('Backed up!', 'success');
-
-                // 🧹 Auto-cleanup: 7 din se purane backups delete (latest 3 hamesha safe)
-                try {
-                    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-                    const listRes = await fetch(
-                        `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime%20desc&pageSize=100&fields=files(id,name,createdTime)`,
-                        { headers: { Authorization: 'Bearer ' + token } }
-                    );
-                    const listData = await listRes.json();
-                    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-                    const backups = (listData.files || []).filter(f => f.name.startsWith('gharseva_backup_'));
-                    const oldFiles = backups.slice(3).filter(f =>
-                        f.name !== fileName && new Date(f.createdTime).getTime() < cutoff);
-                    for (const f of oldFiles) {
-                        const del = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
-                            method: 'DELETE',
-                            headers: { Authorization: 'Bearer ' + token }
-                        });
-                        if (!del.ok) console.warn('Delete failed:', f.name, del.status);
-                    }
-                    if (oldFiles.length) console.log(`🧹 Deleted ${oldFiles.length} old backup(s)`);
-                } catch (cleanupErr) {
-                    console.warn('Cleanup failed:', cleanupErr);
-                }
-            }
-            else throw new Error('Upload failed: ' + resp.status);
-        } catch (e) { setDriveStatus('❌ ' + e.message, true); }
-    };
     window.uploadToGoogleDrive = async function () {
         setDriveStatus('⏳ Backing up...');
         const token = await ensureGoogleAuth();
@@ -1658,8 +1799,6 @@
         const data = getAllData();
         const now = new Date();
         const fileName = `gharseva_backup_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}.json`;
-
-        // Backup retention (kitne din ke backup rakhne hain)
         const KEEP_DAYS = 30;
 
         try {
@@ -1672,14 +1811,12 @@
             let resp;
 
             if (existing.files && existing.files.length) {
-                // Same day ka backup already exists → update (overwrite)
                 resp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existing.files[0].id}?uploadType=media`, {
                     method: 'PATCH',
                     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
                     body: content
                 });
             } else {
-                // Naya backup file banao
                 const metadata = { name: fileName, parents: [folderId], mimeType: 'application/json' };
                 const boundary = 'gsv_' + Date.now();
                 const body = [`--${boundary}`, 'Content-Type: application/json; charset=UTF-8', '', JSON.stringify(metadata), `--${boundary}`, 'Content-Type: application/json', '', content, `--${boundary}--`].join('\r\n');
@@ -1693,8 +1830,6 @@
             if (resp.ok) {
                 setDriveStatus(`✅ Backup complete (${fileName})`);
                 showToast('Backed up!', 'success');
-
-                // 🧹 AUTO-CLEANUP: KEEP_DAYS se purane backups delete karo
                 try {
                     const listRes = await fetch(
                         `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and trashed=false&orderBy=createdTime desc&fields=files(id,name,createdTime)`,
@@ -1703,21 +1838,17 @@
                     const listData = await listRes.json();
                     const cutoffTime = Date.now() - (KEEP_DAYS * 24 * 60 * 60 * 1000);
                     const oldFiles = (listData.files || []).filter(f => new Date(f.createdTime).getTime() < cutoffTime);
-
                     for (const f of oldFiles) {
                         await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
                             method: 'DELETE',
                             headers: { Authorization: 'Bearer ' + token }
                         });
                     }
-
                     if (oldFiles.length) {
-                        console.log(`🧹 Cleaned up ${oldFiles.length} old backup(s) — kept last ${KEEP_DAYS} days`);
                         setDriveStatus(`✅ Backup complete · 🧹 ${oldFiles.length} old removed`);
                     }
                 } catch (cleanupErr) {
                     console.warn('Cleanup failed (backup succeeded):', cleanupErr);
-                    // Backup successful hai, cleanup fail hone se user ko disturb nahi karenge
                 }
             } else {
                 throw new Error('Upload failed: ' + resp.status);
@@ -1726,7 +1857,6 @@
             setDriveStatus('❌ ' + e.message, true);
         }
     };
-
 
     window.listGoogleDriveFiles = async function () {
         setDriveStatus('⏳ Loading files...');
@@ -1829,12 +1959,12 @@
         const exp2 = new Date(); exp2.setDate(exp2.getDate() + 20);
         const exp3 = new Date(); exp3.setDate(exp3.getDate() + 180);
         const stock = [
-            { id: uid('stk'), itemId: itm1.id, storageId: stg2.id, quantity: 3, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
-            { id: uid('stk'), itemId: itm2.id, storageId: stg3.id, quantity: 1, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
-            { id: uid('stk'), itemId: itm3.id, storageId: stg1.id, quantity: 2, expiryDate: exp1.toISOString().split('T')[0], createdAt: now, updatedAt: now },
-            { id: uid('stk'), itemId: itm4.id, storageId: stg2.id, quantity: 0, expiryDate: exp2.toISOString().split('T')[0], createdAt: now, updatedAt: now },
-            { id: uid('stk'), itemId: itm5.id, storageId: stg3.id, quantity: 2, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
-            { id: uid('stk'), itemId: itm6.id, storageId: stg2.id, quantity: 1, expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now }
+            { id: uid('stk'), itemId: itm1.id, storageId: stg2.id, quantity: 3, batchNumber: 'TD-2024-A1', expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm2.id, storageId: stg3.id, quantity: 1, batchNumber: '', expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm3.id, storageId: stg1.id, quantity: 2, batchNumber: 'MLK-2401', expiryDate: exp1.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm4.id, storageId: stg2.id, quantity: 0, batchNumber: '', expiryDate: exp2.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm5.id, storageId: stg3.id, quantity: 2, batchNumber: '', expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now },
+            { id: uid('stk'), itemId: itm6.id, storageId: stg2.id, quantity: 1, batchNumber: '', expiryDate: exp3.toISOString().split('T')[0], createdAt: now, updatedAt: now }
         ];
         saveStorages([stg1, stg2, stg3]);
         saveCategories([cat1, cat2, cat3, cat4]);
@@ -1869,7 +1999,6 @@
     const ITEM_UNITS = ['gm', 'kg', 'ml', 'l', 'u', 'pcs', 'pack', 'dozen', 'box'];
     const STORAGE_TYPES = ['rack', 'box', 'refrigerator', 'cabinet', 'room', 'other'];
 
-    // Simple CSV parser (quotes, commas; ; ya tab delimiter auto-detect)
     function parseCSV(text) {
         const rows = [];
         let cur = '', row = [], inQuotes = false;
@@ -1920,7 +2049,6 @@
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
-    // '' = empty, null = invalid, else YYYY-MM-DD. Accepts YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY
     function normalizeDate(s) {
         s = String(s || '').trim();
         if (!s) return '';
@@ -1935,7 +2063,6 @@
         if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
         return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
     }
-    // Item Master se brand + itemName + size + unit se item dhundo (ctx me cached lists)
     function findItemByKey(ctx, brandName, itemName, sizeStr, unit) {
         if (!brandName || !itemName) return { error: 'brand/itemName missing' };
         const size = parseFloat(sizeStr);
@@ -2084,25 +2211,26 @@
 
         stock: {
             title: 'Stock', file: 'stock',
-            headers: ['brand', 'itemName', 'size', 'unit', 'storage', 'quantity', 'rate', 'purchaseDate', 'expiryDate', 'notes', 'brokenPack'],
+            headers: ['brand', 'itemName', 'size', 'unit', 'storage', 'quantity', 'batchNumber', 'rate', 'purchaseDate', 'expiryDate', 'notes', 'brokenPack'],
             required: ['brand', 'itemname', 'size', 'unit', 'storage', 'quantity'],
-            previewHead: ['Item', 'Storage', 'Qty', 'Rate', 'Expiry'],
+            previewHead: ['Item', 'Storage', 'Qty', 'Batch', 'Expiry'],
             sample: [
-                ['Tata', 'Toor Dal', '1', 'kg', 'Storage Box', '3', '180', todayISO(), '', '', 'yes'],
-                ['Amul', 'Milk', '1', 'l', 'Refrigerator', '2', '60', todayISO(), '', '', 'no']
+                ['Tata', 'Toor Dal', '1', 'kg', 'Storage Box', '3', 'TD-2024-A1', '180', todayISO(), '', '', 'yes'],
+                ['Amul', 'Milk', '1', 'l', 'Refrigerator', '2', 'MLK-2401', '60', todayISO(), '', '', 'no']
             ],
             notes: [
                 'item (brand + itemName + size + unit) aur <strong>storage</strong> pehle se Master me hone chahiye',
+                '<strong>batchNumber</strong> optional',
                 '<strong>rate</strong> (optional): import hone par Item Master ka Base Price latest purchaseDate wale rate se update hota hai',
                 'Dates: YYYY-MM-DD ya DD/MM/YYYY',
-                '<strong>brokenPack</strong> (optional): yes / no — broken/khula package available hai ya nahi',
+                '<strong>brokenPack</strong> (optional): yes / no',
                 'Bilkul same entry (item + storage + qty + dates) skip hogi'
             ],
             getAll: getStock,
             toRow: s => {
                 const item = getItemById(s.itemId); if (!item) return null;
                 const b = getBrandById(item.brandId), st = getStorageById(s.storageId);
-                return [b ? b.name : '', item.itemName, item.size, item.unit, st ? st.name : '', s.quantity, (s.rate === null || s.rate === undefined) ? '' : s.rate, s.purchaseDate || '', s.expiryDate || '', s.notes || '', s.brokenPack ? 'yes' : 'no'];
+                return [b ? b.name : '', item.itemName, item.size, item.unit, st ? st.name : '', s.quantity, s.batchNumber || '', (s.rate === null || s.rate === undefined) ? '' : s.rate, s.purchaseDate || '', s.expiryDate || '', s.notes || '', s.brokenPack ? 'yes' : 'no'];
             },
             makeCtx: () => ({
                 brands: getBrands(), items: getItems(), storages: getStorages(),
@@ -2124,14 +2252,13 @@
                 if (ctx.seen.has(key)) return { dup: `${f.brand.name} ${f.item.itemName} @ ${st.name} already exists` };
                 ctx.seen.add(key);
                 return {
-                    data: { itemId: f.item.id, storageId: st.id, quantity: qty, rate, purchaseDate: pd || null, expiryDate: ed || null, notes: row.notes || '', brokenPack: /^(yes|y|true|1)$/i.test(row.brokenpack || '') },
-                    view: [`${f.brand.name} ${f.item.itemName} ${f.item.size}${f.item.unit}`, st.name, qty, rate !== null ? formatCurrency(rate) : '—', ed ? formatDate(ed) : '—']
+                    data: { itemId: f.item.id, storageId: st.id, quantity: qty, rate, batchNumber: row.batchnumber || '', purchaseDate: pd || null, expiryDate: ed || null, notes: row.notes || '', brokenPack: /^(yes|y|true|1)$/i.test(row.brokenpack || '') },
+                    view: [`${f.brand.name} ${f.item.itemName} ${f.item.size}${f.item.unit}`, st.name, qty, row.batchnumber || '—', ed ? formatDate(ed) : '—']
                 };
             },
             commit(list) {
                 const all = getStock(), items = getItems(), now = new Date().toISOString();
                 let itemsChanged = false;
-                // purani date pehle, taaki latest purchase ka rate Base Price bane
                 [...list].sort((a, b) => (a.data.purchaseDate || '').localeCompare(b.data.purchaseDate || '')).forEach(p => {
                     all.push({ id: uid('stk'), ...p.data, createdAt: now, updatedAt: now });
                     if (p.data.rate > 0 && applyBuyRate(items, p.data.itemId, p.data.rate, p.data.purchaseDate)) itemsChanged = true;
@@ -2204,7 +2331,6 @@
 
     function ioRefreshAll() { refreshCurrentPage(); refreshDropdowns(); refreshDashboard(); updateBadges(); }
 
-    // CSV dropdown (Import / Export / Remove All) har page header me
     function buildIoMenus() {
         document.querySelectorAll('.io-menu[data-module]').forEach(el => {
             const k = el.getAttribute('data-module');
@@ -2263,7 +2389,6 @@
     };
     window.exportCurrentIoModule = function () { if (__ioModule) exportModuleCsv(__ioModule); };
 
-    // File select
     document.addEventListener('change', function (e) {
         if (!e.target || e.target.id !== 'ioCsvFile') return;
         const cfg = IO_CONFIG[__ioModule];
@@ -2330,7 +2455,7 @@
         const cfg = IO_CONFIG[__ioModule];
         if (!cfg || !__ioParsed || !__ioParsed.length) { showToast('Import karne ke liye kuch nahi hai', 'warning'); return; }
         const n = __ioParsed.length;
-        if (cfg.commit(__ioParsed) === false) return; // storage full toast pehle hi dikh chuka
+        if (cfg.commit(__ioParsed) === false) return;
         const inst = bootstrap.Modal.getInstance(document.getElementById('ioModal'));
         if (inst) inst.hide();
         showToast(`${n} ${cfg.title} imported!`, 'success');
@@ -2340,55 +2465,10 @@
 
     // ═══ Init ═══
     function init() {
-        // ═══ MIUI / Android viewport fix ═══
         function setAppViewport() {
             document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
         }
-        // function setAppViewport() {
-        //     // Real visual viewport height
-        //     // const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-        //     // document.documentElement.style.setProperty('--app-h', vh + 'px');
-
-        //     const vh = Math.max(
-        //         window.visualViewport ? window.visualViewport.height : 0,
-        //         window.innerHeight
-        //     );
-        //     document.documentElement.style.setProperty('--app-h', vh + 'px');
-
-        //     // Android device bottom safe area detection
-        //     // MIUI gesture bar ~ 24-32px; iOS returns via env()
-        //     const isAndroid = /Android/i.test(navigator.userAgent);
-        //     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        //         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-        //     let sab = 0;
-        //     if (isIOS) {
-        //         // env() works on iOS — read via CSS
-        //         const tempEl = document.createElement('div');
-        //         tempEl.style.cssText = 'position:fixed;bottom:0;height:env(safe-area-inset-bottom,0);';
-        //         document.body.appendChild(tempEl);
-        //         sab = tempEl.getBoundingClientRect().height || 0;
-        //         document.body.removeChild(tempEl);
-        //     } else if (isAndroid) {
-        //         // MIUI Android: env() returns 0 → detect via innerHeight vs screen
-        //         const ratio = (window.screen.height - window.innerHeight) / window.screen.height;
-        //         // If difference > ~8% → gesture nav present
-        //         if (ratio > 0.05 && ratio < 0.15) {
-        //             sab = 22; // MIUI gesture bar approx
-        //         }
-        //     }
-        //     document.documentElement.style.setProperty('--sab', sab + 'px');
-
-        //     // Landscape / notch left-right (rare on phones)
-        //     const sal = isIOS ? 0 : Math.max(0, (window.outerWidth - window.innerWidth) / 2);
-        //     if (sal > 0 && window.innerWidth > window.innerHeight) {
-        //         document.documentElement.style.setProperty('--sal', sal + 'px');
-        //         document.documentElement.style.setProperty('--sar', sal + 'px');
-        //     }
-        // }
-
         setAppViewport();
-        // window.addEventListener('resize', setAppViewport);
         window.addEventListener('orientationchange', () => {
             setTimeout(setAppViewport, 250);
         });
@@ -2418,14 +2498,11 @@
             }, 200);
         });
 
-        // Bottom navigation wiring
         document.querySelectorAll('.bottom-nav-item').forEach(btn => {
             btn.addEventListener('click', function () {
                 const nav = this.getAttribute('data-nav');
                 if (nav === 'more') {
-                    // Open sidebar drawer as "More" menu
                     openSidebar();
-                    // Highlight current page in sidebar
                     document.querySelectorAll('.sidebar-nav .nav-link').forEach(el => el.classList.remove('active'));
                     const cur = document.querySelector(`.sidebar-nav [data-page="${currentPage}"]`);
                     if (cur) cur.classList.add('active');
@@ -2438,6 +2515,12 @@
         buildIoMenus();
         attachSearchListeners();
         refreshDropdowns();
+
+        // Pre-setup autocompletes (configs are lazily re-bound on modal open too)
+        setupItemBrandAc();
+        setupItemCategoryAc();
+        setupStockItemAc();
+
         navigateTo('dashboard');
     }
     init();
