@@ -222,6 +222,340 @@
         .modal .ac-list {
             z-index: 1090;
         }
+
+        /* ═══ SHOPPING TABS + PURCHASE NOTES ═══ */
+        .shop-tabs {
+            display: flex;
+            gap: 4px;
+            background: #e2e8f0;
+            padding: 4px;
+            border-radius: 14px;
+            margin-bottom: 14px;
+        }
+
+        .shop-tab {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 9px 8px;
+            min-height: 42px;
+            border-radius: 11px;
+            font-weight: 600;
+            font-size: 0.88rem;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .shop-tab.active {
+            background: #fff;
+            color: #059669;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .shop-tab .tab-count {
+            background: #cbd5e1;
+            color: #334155;
+            border-radius: 20px;
+            font-size: 0.68rem;
+            padding: 1px 8px;
+        }
+
+        .shop-tab.active .tab-count {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .pn-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .pn-summary:empty {
+            display: none;
+        }
+
+        .pn-sum-box {
+            background: #fff;
+            border-radius: 14px;
+            padding: 9px 12px;
+            box-shadow: var(--card-shadow);
+            border-left: 4px solid #94a3b8;
+        }
+
+        .pn-sum-box.total {
+            border-left-color: #0ea5e9;
+        }
+
+        .pn-sum-box.bought {
+            border-left-color: #10b981;
+        }
+
+        .pn-sum-box.pending {
+            border-left-color: #f59e0b;
+        }
+
+        .pn-sum-box .lbl {
+            font-size: 0.7rem;
+            color: #64748b;
+            font-weight: 600;
+        }
+
+        .pn-sum-box .val {
+            font-size: 1.05rem;
+            font-weight: 800;
+            word-break: break-word;
+        }
+
+        #pnListContainer {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 12px;
+            align-items: start;
+        }
+
+        .pn-card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 14px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid transparent;
+        }
+
+        .pn-card.overdue {
+            border-color: #fecaca;
+        }
+
+        .pn-card.complete {
+            border-color: #bbf7d0;
+            background: #fcfffd;
+        }
+
+        .pn-title {
+            font-weight: 800;
+            font-size: 1.02rem;
+            line-height: 1.25;
+            word-break: break-word;
+        }
+
+        .pn-meta {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 3px;
+        }
+
+        .pn-remark {
+            font-size: 0.82rem;
+            color: #475569;
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 6px 10px;
+            margin-top: 8px;
+        }
+
+        .pn-progress {
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .pn-progress span {
+            display: block;
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #34d399);
+            border-radius: 6px;
+            transition: width 0.3s;
+        }
+
+        .pn-amt,
+        .pn-draft-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+
+        .pn-amt>div,
+        .pn-draft-summary>div {
+            background: #f1f5f9;
+            border-radius: 10px;
+            padding: 6px 8px;
+            min-width: 0;
+        }
+
+        .pn-amt>div.g,
+        .pn-draft-summary>div.g {
+            background: #ecfdf5;
+            color: #047857;
+        }
+
+        .pn-amt>div.o,
+        .pn-draft-summary>div.o {
+            background: #fffbeb;
+            color: #b45309;
+        }
+
+        .pn-amt small,
+        .pn-draft-summary small {
+            display: block;
+            font-size: 0.66rem;
+            font-weight: 600;
+            opacity: 0.85;
+        }
+
+        .pn-amt b,
+        .pn-draft-summary b {
+            font-size: 0.92rem;
+            word-break: break-word;
+        }
+
+        .pn-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .pn-actions .btn {
+            min-height: 36px;
+        }
+
+        .pn-items {
+            margin-top: 10px;
+        }
+
+        .pn-it {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 9px 2px;
+            border-top: 1px dashed #e2e8f0;
+        }
+
+        .pn-it .form-check-input {
+            width: 22px;
+            height: 22px;
+            margin: 2px 0 0;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .pn-it-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .pn-it-name {
+            font-weight: 700;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pn-it-sub {
+            font-size: 0.78rem;
+            color: #64748b;
+            margin-top: 2px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .pn-it-total {
+            font-weight: 700;
+            white-space: nowrap;
+            color: #0f172a;
+        }
+
+        .pn-it.bought .pn-it-name span,
+        .pn-it.bought .pn-it-total {
+            text-decoration: line-through;
+            color: #94a3b8;
+        }
+
+        /* Modal */
+        .pn-add-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 10px;
+        }
+
+        .pn-row {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #fff;
+        }
+
+        .pn-row.bought {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+        }
+
+        .pn-row.bought .pn-it-name span {
+            text-decoration: line-through;
+            color: #64748b;
+        }
+
+        .pn-row .pn-chk {
+            width: 22px;
+            height: 22px;
+            margin: 2px 0 0;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .pn-row-edit {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr auto;
+            gap: 6px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .pn-x {
+            color: #94a3b8;
+            font-weight: 700;
+        }
+
+        .pn-row-total {
+            color: #059669;
+            min-width: 64px;
+            text-align: right;
+        }
+
+        .pn-footer {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
+
+        @media (max-width: 575.98px) {
+            #pnListContainer {
+                grid-template-columns: 1fr;
+            }
+
+            .pn-row-edit {
+                grid-template-columns: 1fr auto 1fr;
+            }
+
+            .pn-row-total {
+                grid-column: 1 / -1;
+                text-align: right;
+            }
+        }
     </style>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
@@ -274,7 +608,7 @@
                         & Sync</button></div>
             </nav>
             <div class="sidebar-footer">
-                <small style="color:#64748b;font-size:0.7rem;">GharSeva v1.5</small>
+                <small style="color:#64748b;font-size:0.7rem;">GharSeva v1.6</small>
             </div>
         </aside>
 
@@ -515,11 +849,11 @@
                 <div class="row g-3" id="storagesGrid"></div>
             </div>
 
-            <!-- Shopping List -->
+            <!-- Shopping -->
             <div class="section-page" id="page-shopping">
                 <div class="page-header">
-                    <h5 class="fw-bold mb-0">🛒 Shopping List</h5>
-                    <div class="d-flex gap-2 flex-wrap">
+                    <h5 class="fw-bold mb-0">🛒 Shopping</h5>
+                    <div class="gap-2 flex-wrap" id="shopToolsList" style="display:flex;">
                         <div class="io-menu" data-module="shopping"></div>
                         <button class="btn btn-outline-custom btn-sm" onclick="autoGenerateShoppingList()"><i
                                 class="fas fa-wand-magic-sparkles me-1"></i>Auto</button>
@@ -528,9 +862,45 @@
                         <button class="btn btn-outline-custom btn-sm" onclick="copyShoppingList()"><i
                                 class="fas fa-copy me-1"></i>Copy</button>
                     </div>
+                    <div class="gap-2 flex-wrap" id="shopToolsNotes" style="display:none;">
+                        <div class="io-menu" data-module="purchaseNotes"></div>
+                        <button class="btn btn-primary-custom btn-sm" onclick="openPnModal()"><i
+                                class="fas fa-plus me-1"></i>New Note</button>
+                    </div>
                 </div>
-                <div class="card-custom">
-                    <div id="shoppingListContainer"></div>
+
+                <div class="shop-tabs">
+                    <button class="shop-tab active" id="shopTabBtnList" onclick="switchShopTab('list')">
+                        <i class="fas fa-list-check"></i> Direct List <span class="tab-count"
+                            id="shopTabCountList">0</span>
+                    </button>
+                    <button class="shop-tab" id="shopTabBtnNotes" onclick="switchShopTab('notes')">
+                        <i class="fas fa-file-invoice"></i> Purchase Notes <span class="tab-count"
+                            id="shopTabCountNotes">0</span>
+                    </button>
+                </div>
+
+                <!-- Direct list -->
+                <div id="shopPaneList">
+                    <div class="card-custom">
+                        <div id="shoppingListContainer"></div>
+                    </div>
+                </div>
+
+                <!-- Purchase notes -->
+                <div id="shopPaneNotes" style="display:none;">
+                    <div class="pn-summary" id="pnSummary"></div>
+                    <div class="filters-bar">
+                        <input type="text" class="form-control form-control-sm" id="pnSearch"
+                            placeholder="🔍 Search note / item...">
+                        <select class="form-select form-select-sm" id="pnStatusFilter">
+                            <option value="open" selected>Open (pending)</option>
+                            <option value="overdue">Overdue</option>
+                            <option value="done">Completed</option>
+                            <option value="all">All Notes</option>
+                        </select>
+                    </div>
+                    <div id="pnListContainer"></div>
                 </div>
             </div>
 
@@ -912,8 +1282,8 @@
                         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Expiry Date</label><input
                                 type="date" class="form-control" id="stockExpiry"></div>
                         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Buy Rate (₹ / unit)</label>
-                            <input type="number" class="form-control" id="stockRate" placeholder="e.g., 180"
-                                step="0.01" min="0"><small class="text-muted" style="font-size:0.7rem;">Save par Item
+                            <input type="number" class="form-control" id="stockRate" placeholder="e.g., 180" step="0.01"
+                                min="0"><small class="text-muted" style="font-size:0.7rem;">Save par Item
                                 Master ka Base Price update hoga</small>
                         </div>
                         <div class="col-12 col-md-8"><label class="form-label fw-semibold">Notes</label><input
@@ -952,8 +1322,16 @@
                     <input type="hidden" id="shoppingEditId">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Item *</label>
-                        <select class="form-select" id="shoppingItemSelect" onchange="onShoppingItemChange()"></select>
-                        <small class="text-muted" style="font-size:0.72rem;">Item Master se select karein</small>
+                        <div class="ac-wrap">
+                            <input type="text" class="form-control ac-input" id="shoppingItemAc"
+                                placeholder="Type item name..." autocomplete="off">
+                            <button type="button" class="ac-clear" id="shoppingItemAcClear" tabindex="-1"
+                                onclick="acClear('shoppingItemAc')"><i class="fas fa-times"></i></button>
+                            <div class="ac-list" id="shoppingItemAcList"></div>
+                        </div>
+                        <input type="hidden" id="shoppingItem">
+                        <small class="text-muted" style="font-size:0.72rem;">Item Master se type karke select
+                            karein</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Seller</label>
@@ -994,6 +1372,93 @@
         </div>
     </div>
 
+    <!-- ══════════ PURCHASE NOTE MODAL ══════════ -->
+    <div class="modal fade modal-custom" id="pnModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="pnModalTitle">New Purchase Note</h5><button type="button"
+                        class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="pnEditId">
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-7"><label class="form-label fw-semibold">Title *</label><input
+                                type="text" class="form-control" id="pnTitle"
+                                placeholder="e.g., Mahine ka ration, Diwali shopping" autocomplete="off"></div>
+                        <div class="col-12 col-md-5"><label class="form-label fw-semibold">Is date tak
+                                chahiye</label><input type="date" class="form-control" id="pnDue"></div>
+                        <div class="col-12"><label class="form-label fw-semibold">Remark</label><textarea
+                                class="form-control" id="pnRemark" rows="2"
+                                placeholder="Optional — koi khaas instruction"></textarea></div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                        <label class="form-label fw-semibold mb-0"><i
+                                class="fas fa-basket-shopping text-success me-1"></i>Items
+                            <span class="badge-soft gray" id="pnItemsCount">0</span></label>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-sm btn-outline-custom" onclick="pnAddLowStock()"><i
+                                    class="fas fa-wand-magic-sparkles me-1"></i>Low stock se</button>
+                            <button type="button" class="btn btn-sm btn-outline-custom"
+                                onclick="pnAddFromDirectList()"><i class="fas fa-list-check me-1"></i>Direct list
+                                se</button>
+                        </div>
+                    </div>
+
+                    <div class="pn-add-box mb-3">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <div class="ac-wrap">
+                                    <input type="text" class="form-control ac-input" id="pnItemAc"
+                                        placeholder="Type item name..." autocomplete="off">
+                                    <button type="button" class="ac-clear" id="pnItemAcClear" tabindex="-1"
+                                        onclick="acClear('pnItemAc')"><i class="fas fa-times"></i></button>
+                                    <div class="ac-list" id="pnItemAcList"></div>
+                                </div>
+                                <input type="hidden" id="pnItem">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <select class="form-select" id="pnSeller" onchange="pnOnSellerChange()"></select>
+                            </div>
+                            <div class="col-5 col-md-4">
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="pnQty" value="1" step="0.01"
+                                        min="0.01" oninput="pnRecalcAdd()"
+                                        onkeydown="if(event.key==='Enter'){event.preventDefault();pnAddItem();}">
+                                    <span class="input-group-text" id="pnUnit">—</span>
+                                </div>
+                            </div>
+                            <div class="col-7 col-md-4">
+                                <div class="input-group">
+                                    <span class="input-group-text">₹</span>
+                                    <input type="number" class="form-control" id="pnPrice" placeholder="Price / unit"
+                                        step="0.01" min="0" oninput="pnRecalcAdd()"
+                                        onkeydown="if(event.key==='Enter'){event.preventDefault();pnAddItem();}">
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4 d-flex gap-2 align-items-center">
+                                <span class="small text-muted">= <strong id="pnAddTotal"
+                                        style="color:#059669;">₹0</strong></span>
+                                <button type="button" class="btn btn-primary-custom btn-sm flex-grow-1"
+                                    onclick="pnAddItem()"><i class="fas fa-plus me-1"></i>Add</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="pnItemsList"></div>
+                </div>
+                <div class="modal-footer pn-footer">
+                    <div class="pn-draft-summary" id="pnDraftSummary"></div>
+                    <div class="d-flex gap-2 w-100 justify-content-end">
+                        <button class="btn btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
+                        <button class="btn btn-primary-custom" onclick="savePurchaseNote()">💾 Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ══════════ QUICK ADD SELLER MODAL ══════════ -->
     <div class="modal fade modal-custom" id="quickSellerModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
@@ -1016,7 +1481,19 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="app.js"></script>
+    <!-- <script src="app.js"></script> -->
+
+    <!-- GharSeva — split modules. Order matter karta hai! -->
+    <script src="js/core.js"></script>
+    <script src="js/autocomplete.js"></script>
+    <script src="js/masters.js"></script>
+    <script src="js/items.js"></script>
+    <script src="js/stock.js"></script>
+    <script src="js/shopping.js"></script>
+    <script src="js/csv-io.js"></script>
+    <script src="js/backup.js"></script>
+    <script src="app-v2.js"></script>
+
     <script src="https://apis.google.com/js/api.js"></script>
     <script src="https://accounts.google.com/gsi/client"></script>
 </body>
