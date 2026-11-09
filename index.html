@@ -685,51 +685,114 @@
 
             <!-- Dashboard -->
             <div class="section-page active" id="page-dashboard">
-                <div class="row g-3 mb-3">
-                    <div class="col-6 col-lg-3">
-                        <div class="stat-card green">
-                            <div class="stat-value" id="statTotalItems">0</div>
-                            <div class="stat-label"><i class="fas fa-tag me-1"></i>Total Items</div>
+
+                <!-- Hero -->
+                <div class="dash-hero">
+                    <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                        <div style="min-width:0;">
+                            <h5 class="fw-bold mb-0" id="dashGreeting">Welcome 👋</h5>
+                            <div class="dash-date" id="dashDate"></div>
+                            <div class="dash-summary" id="dashSummary"></div>
                         </div>
                     </div>
-                    <div class="col-6 col-lg-3">
-                        <div class="stat-card blue">
-                            <div class="stat-value" id="statTotalStock">0</div>
-                            <div class="stat-label"><i class="fas fa-boxes-stacked me-1"></i>Stock Entries</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-lg-3">
-                        <div class="stat-card orange">
-                            <div class="stat-value" id="statLowStock">0</div>
-                            <div class="stat-label"><i class="fas fa-triangle-exclamation me-1"></i>Low Stock</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-lg-3">
-                        <div class="stat-card purple">
-                            <div class="stat-value" id="statInventoryValue">₹0</div>
-                            <div class="stat-label"><i class="fas fa-indian-rupee-sign me-1"></i>Inventory Value</div>
-                        </div>
+                    <div class="dash-actions mt-3">
+                        <button class="btn btn-sm" onclick="openStockModal()"><i class="fas fa-plus me-1"></i>Add
+                            Stock</button>
+                        <button class="btn btn-sm" onclick="openItemModal()"><i class="fas fa-tag me-1"></i>Add
+                            Item</button>
+                        <button class="btn btn-sm" onclick="navigateTo('shopping')"><i
+                                class="fas fa-cart-shopping me-1"></i>Shopping</button>
+                        <button class="btn btn-sm" onclick="dashGoStock('inuse')"><i
+                                class="fas fa-circle-play me-1"></i>In Use</button>
+                        <button class="btn btn-sm" onclick="navigateTo('settings')"><i
+                                class="fas fa-cloud-arrow-up me-1"></i>Backup</button>
                     </div>
                 </div>
 
+                <!-- KPI cards (rendered by JS) -->
+                <div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-3 mb-3" id="dashKpis"></div>
+
+                <!-- Stock health + smart insights -->
                 <div class="row g-3">
-                    <div class="col-12 col-lg-6">
+                    <div class="col-12 col-lg-7">
                         <div class="card-custom">
-                            <h6 class="fw-bold mb-3"><i class="fas fa-triangle-exclamation text-warning me-2"></i>Low
-                                Stock Alerts</h6>
-                            <div id="lowStockList" class="alert-list"></div>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0"><i class="fas fa-heart-pulse text-danger me-2"></i>Stock Health
+                                </h6>
+                                <span class="badge-soft green" id="dashHealthPct"></span>
+                            </div>
+                            <div id="dashHealth"></div>
                         </div>
                     </div>
-                    <div class="col-12 col-lg-6">
+                    <div class="col-12 col-lg-5">
                         <div class="card-custom">
-                            <h6 class="fw-bold mb-3"><i class="fas fa-calendar-xmark text-danger me-2"></i>Expiring Soon
-                                (30 days)</h6>
-                            <div id="expiringList" class="alert-list"></div>
+                            <h6 class="fw-bold mb-3"><i class="fas fa-wand-magic-sparkles text-primary me-2"></i>Smart
+                                Insights</h6>
+                            <div id="dashInsights" class="d-grid gap-2"></div>
                         </div>
                     </div>
                 </div>
 
-                <div class="row g-3 mt-1">
+                <!-- Alerts + In Use -->
+                <div class="row g-3 mt-0">
+                    <div class="col-12 col-lg-6">
+                        <div class="card-custom">
+                            <h6 class="fw-bold mb-2"><i class="fas fa-bell text-warning me-2"></i>Alerts</h6>
+                            <div class="dash-tabs mb-2" id="dashAlertTabs"></div>
+                            <div id="dashAlerts" class="alert-list"></div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="card-custom">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="fw-bold mb-0"><i class="fas fa-circle-play text-success me-2"></i>Currently
+                                    In Use</h6>
+                                <span class="badge-soft teal" id="dashInUseCount">0</span>
+                            </div>
+                            <div id="dashInUse" class="alert-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Value breakdown + Shopping -->
+                <div class="row g-3 mt-0">
+                    <div class="col-12 col-lg-7">
+                        <div class="card-custom">
+                            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                <h6 class="fw-bold mb-0"><i class="fas fa-chart-simple text-primary me-2"></i>Inventory
+                                    Value</h6>
+                                <div class="dash-tabs">
+                                    <button type="button" class="dash-tab" data-vtab="category"
+                                        onclick="dashSetTab('valueTab','category')">Category</button>
+                                    <button type="button" class="dash-tab" data-vtab="storage"
+                                        onclick="dashSetTab('valueTab','storage')">Storage</button>
+                                </div>
+                            </div>
+                            <div id="dashValueBars"></div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-5">
+                        <div class="card-custom">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0"><i class="fas fa-cart-shopping text-info me-2"></i>Shopping
+                                    Snapshot</h6>
+                                <button class="btn btn-sm btn-outline-custom"
+                                    onclick="navigateTo('shopping')">Open</button>
+                            </div>
+                            <div id="dashShopping"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top items + Top brands -->
+                <div class="row g-3 mt-0">
+                    <div class="col-12 col-lg-6">
+                        <div class="card-custom">
+                            <h6 class="fw-bold mb-3"><i class="fas fa-trophy text-warning me-2"></i>Most Valuable Items
+                            </h6>
+                            <div id="dashTopItems"></div>
+                        </div>
+                    </div>
                     <div class="col-12 col-lg-6">
                         <div class="card-custom">
                             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -741,23 +804,23 @@
                             <div id="brandUsageList"></div>
                         </div>
                     </div>
-                    <div class="col-12 col-lg-6">
+                </div>
+
+                <!-- Recent activity -->
+                <div class="row g-3 mt-0">
+                    <div class="col-12">
                         <div class="card-custom">
-                            <h6 class="fw-bold mb-3"><i class="fas fa-clock-rotate-left me-2"></i>Recently Added Items
-                            </h6>
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Item</th>
-                                            <th>Brand</th>
-                                            <th>Size</th>
-                                            <th>Price</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="recentItemsBody"></tbody>
-                                </table>
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                <h6 class="fw-bold mb-0"><i class="fas fa-clock-rotate-left me-2"></i>Recent Activity
+                                </h6>
+                                <div class="dash-tabs">
+                                    <button type="button" class="dash-tab" data-rtab="stock"
+                                        onclick="dashSetTab('recentTab','stock')">Stock</button>
+                                    <button type="button" class="dash-tab" data-rtab="items"
+                                        onclick="dashSetTab('recentTab','items')">Items</button>
+                                </div>
                             </div>
+                            <div id="dashRecent"></div>
                         </div>
                     </div>
                 </div>
@@ -789,6 +852,8 @@
                         <option value="expired">Expired</option>
                         <option value="expiring">Expiring Soon</option>
                         <option value="broken">Broken Pack Available</option>
+                        <option value="inuse">In Use</option>
+                        <option value="notinuse">Not In Use</option>
                     </select>
                 </div>
 
@@ -1351,6 +1416,18 @@
                         </div>
                         <div class="col-12 col-md-8"><label class="form-label fw-semibold">Notes</label><input
                                 type="text" class="form-control" id="stockNotes" placeholder="Optional"></div>
+                        <div class="col-12">
+                            <div class="form-check form-switch p-0 d-flex align-items-center gap-2"
+                                style="padding:10px 12px !important;border:1px solid #e2e8f0;border-radius:12px;background:#f0fdfa;">
+                                <input class="form-check-input m-0" type="checkbox" role="switch" id="stockInUse"
+                                    style="width:2.4em;height:1.3em;flex-shrink:0;">
+                                <label class="form-check-label fw-semibold" for="stockInUse" style="cursor:pointer;">
+                                    <i class="fas fa-circle-play me-1 text-success"></i>Currently In Use
+                                    <small class="text-muted d-block fw-normal" style="font-size:0.72rem;">Ye item abhi
+                                        ghar me use ho raha hai to ON rakho</small>
+                                </label>
+                            </div>
+                        </div>
                         <div class="col-12">
                             <div class="form-check form-switch p-0 d-flex align-items-center gap-2"
                                 style="padding:10px 12px !important;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">

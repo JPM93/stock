@@ -15,11 +15,17 @@
 
 @media (max-width: 767.98px) {
 
-    html, body {
+    html,
+    body {
         overscroll-behavior-y: none;
     }
 
-    button, .btn, .nav-link, .bottom-nav-item, select, input {
+    button,
+    .btn,
+    .nav-link,
+    .bottom-nav-item,
+    select,
+    input {
         touch-action: manipulation;
     }
 
@@ -133,19 +139,19 @@
         padding: 12px 4px;
     }
 
-    .shopping-item > .form-check-input {
+    .shopping-item>.form-check-input {
         grid-area: check;
     }
 
-    .shopping-item > div:nth-child(2) {
+    .shopping-item>div:nth-child(2) {
         grid-area: info;
     }
 
-    .shopping-item > .text-end {
+    .shopping-item>.text-end {
         grid-area: total;
     }
 
-    .shopping-item > .d-flex.gap-1 {
+    .shopping-item>.d-flex.gap-1 {
         grid-area: actions;
         justify-self: end;
     }
@@ -172,7 +178,7 @@
         font-size: 0.7rem;
     }
 
-    .table > :not(caption) > * > * {
+    .table> :not(caption)>*>* {
         padding: 0.5rem 0.4rem;
         font-size: 0.82rem;
     }
@@ -256,5 +262,38 @@
 
     .bottom-nav-item span {
         display: none;
+    }
+}
+
+/* ── Dashboard v2 (mobile) ── */
+@media (max-width: 767.98px) {
+    .dash-hero {
+        border-radius: 18px;
+        padding: 0.95rem 1rem;
+    }
+
+    .dash-hero h5 {
+        font-size: 1.05rem;
+    }
+
+    .dash-actions .btn {
+        min-height: 40px;
+    }
+
+    .dash-kpi .stat-value {
+        font-size: 1.2rem;
+    }
+
+    .dash-tab {
+        min-height: 38px;
+    }
+
+    .dash-row {
+        padding: 9px 0;
+    }
+
+    #page-dashboard .card-custom {
+        padding: 1rem;
+        border-radius: 16px;
     }
 }

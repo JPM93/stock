@@ -468,100 +468,253 @@
         }
     }
 
-    // ─── Dashboard ───────────────────────────────────
+    // ─── Dashboard (v2) ──────────────────────────────
+    const dashState = { alertTab: 'low', valueTab: 'category', recentTab: 'stock' };
+    window.dashSetTab = function (key, val) { dashState[key] = val; refreshDashboard(false); };
+    window.dashGoStock = function (filter) {
+        navigateTo('stock');
+        ['stockSearch', 'stockBrandFilter', 'stockStorageFilter'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        const f = document.getElementById('stockStatusFilter');
+        if (f) { f.value = filter || ''; refreshStock(); }
+    };
+
+    function dashStockState(s, item, now) {
+        const q = Number(s.quantity) || 0;
+        if (q <= 0) return { key: 'out' };
+        if (s.expiryDate && new Date(s.expiryDate) < now) return { key: 'expired' };
+        if (q <= getMinAlert(item)) return { key: 'low' };
+        if (s.expiryDate) {
+            const days = Math.ceil((new Date(s.expiryDate) - now) / 86400000);
+            if (days <= 30) return { key: 'expiring', days };
+        }
+        return { key: 'ok' };
+    }
+
+    function dashCount(el, target, fmt) {
+        if (!el) return;
+        const prev = Number(el.dataset.v);
+        el.dataset.v = target;
+        const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce || prev === target) { el.textContent = fmt(target); return; }
+        const from = isNaN(prev) ? 0 : prev, t0 = performance.now(), dur = 600;
+        (function tick(t) {
+            const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+            el.textContent = fmt(from + (target - from) * e);
+            if (p < 1) requestAnimationFrame(tick); else el.textContent = fmt(target);
+        })(t0);
+    }
+
+    function dashEmpty(icon, msg, good) {
+        return `<div class="empty-state py-3"><i class="fas ${icon} ${good ? 'text-success' : ''}"></i><p>${msg}</p></div>`;
+    }
+    function dashName(item, brand) { return `${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}`.trim(); }
+
     function refreshDashboard() {
-        const items = getItems(), stock = getStock();
-        document.getElementById('statTotalItems').textContent = items.length;
-        document.getElementById('statTotalStock').textContent = stock.length;
-        const lowStock = stock.filter(s => {
-            const item = getItemById(s.itemId); const min = getMinAlert(item);
-            const q = Number(s.quantity) || 0;
-            return q > 0 && q <= min;
-        });
-        const outOfStock = stock.filter(s => (Number(s.quantity) || 0) <= 0);
-        document.getElementById('statLowStock').textContent = lowStock.length + outOfStock.length;
-        let totalValue = 0;
-        stock.forEach(s => { const item = getItemById(s.itemId); if (item) totalValue += getSellingPrice(item) * (Number(s.quantity) || 0); });
-        document.getElementById('statInventoryValue').textContent = formatCurrency(totalValue);
-
-        const lowStockList = document.getElementById('lowStockList');
-        const alerts = [...outOfStock, ...lowStock].slice(0, 8);
-        if (!alerts.length) { lowStockList.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle text-success"></i><p>All items are well-stocked! 🎉</p></div>'; }
-        else {
-            lowStockList.innerHTML = alerts.map(s => {
-                const item = getItemById(s.itemId); if (!item) return '';
-                const brand = getBrandById(item.brandId);
-                const isOut = (Number(s.quantity) || 0) <= 0;
-                const min = getMinAlert(item);
-                return `<div class="alert-item ${isOut ? 'danger' : ''}">
-                    <div style="min-width:0;flex:1;"><strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || 'Unknown')} · Alert ≤ ${min}</small></div>
-                    <span class="badge-soft ${isOut ? 'red' : 'orange'}">${isOut ? 'Out' : (Number(s.quantity)) + ' left'}</span>
-                </div>`;
-            }).join('');
-        }
-
-        const expiringList = document.getElementById('expiringList');
+        const root = document.getElementById('dashKpis');
+        if (!root) return;
+        const items = getItems(), stock = getStock(), brands = getBrands(), cats = getCategories(), storages = getStorages();
+        const shopping = getShopping(), notes = getPurchaseNotes();
+        const itemMap = new Map(items.map(i => [i.id, i]));
+        const brandMap = new Map(brands.map(b => [b.id, b]));
+        const catMap = new Map(cats.map(c => [c.id, c]));
+        const storMap = new Map(storages.map(s => [s.id, s]));
+        const priceCache = new Map();
+        const price = it => { if (!priceCache.has(it.id)) priceCache.set(it.id, getSellingPrice(it)); return priceCache.get(it.id); };
+        const now = new Date();
         const today = new Date(); today.setHours(0, 0, 0, 0);
-        const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
-        const expiring = stock.filter(s => {
-            if (!s.expiryDate) return false;
-            const d = new Date(s.expiryDate); d.setHours(0, 0, 0, 0);
-            return d >= today && d <= in30;
-        }).sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate)).slice(0, 8);
-        if (!expiring.length) { expiringList.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle text-success"></i><p>Nothing expiring in 30 days</p></div>'; }
-        else {
-            expiringList.innerHTML = expiring.map(s => {
-                const item = getItemById(s.itemId); if (!item) return '';
-                const brand = getBrandById(item.brandId);
-                const d = new Date(s.expiryDate); const days = Math.ceil((d - today) / 86400000);
-                return `<div class="alert-item"><div style="min-width:0;flex:1;"><strong>${escapeHtml(brand?.name || '')} ${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${escapeHtml(getStorageById(s.storageId)?.name || '')}</small></div><span class="badge-soft orange">${days}d</span></div>`;
-            }).join('');
+
+        // ── single pass over stock ──
+        const rows = [];
+        const c = { out: 0, low: 0, expiring: 0, expired: 0, ok: 0, inUse: 0, broken: 0, exp7: 0 };
+        const catVal = new Map(), storVal = new Map(), itemAgg = new Map(), entriesPerItem = new Map();
+        let totalValue = 0;
+        stock.forEach(s => {
+            const item = itemMap.get(s.itemId); if (!item) return;
+            const st = dashStockState(s, item, now);
+            const qty = Number(s.quantity) || 0;
+            const value = price(item) * qty;
+            const r = { s, item, st, qty, value, brand: brandMap.get(item.brandId), storage: storMap.get(s.storageId) };
+            rows.push(r);
+            c[st.key]++;
+            if (st.key === 'expiring' && st.days <= 7) c.exp7++;
+            if (s.inUse) c.inUse++;
+            if (s.brokenPack) c.broken++;
+            totalValue += value;
+            catVal.set(item.categoryId, (catVal.get(item.categoryId) || 0) + value);
+            storVal.set(s.storageId, (storVal.get(s.storageId) || 0) + value);
+            const a = itemAgg.get(item.id) || { item, value: 0, qty: 0 };
+            a.value += value; a.qty += qty; itemAgg.set(item.id, a);
+            if (qty > 0) entriesPerItem.set(item.id, (entriesPerItem.get(item.id) || 0) + 1);
+        });
+
+        const shopPending = shopping.filter(x => !x.done);
+        const shopPendingAmt = shopPending.reduce((a, x) => a + (Number(x.totalPrice) || 0), 0);
+        const noteStats = notes.map(n => ({ n, st: pnStats(n) }));
+        const notePendingItems = noteStats.reduce((a, x) => a + x.st.pendingCount, 0);
+        const notePendingAmt = noteStats.reduce((a, x) => a + x.st.pending, 0);
+        const shopCount = shopPending.length + notePendingItems;
+
+        // ── hero ──
+        const hr = now.getHours();
+        const greet = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+        const needAttn = c.out + c.low + c.expired + c.exp7;
+        document.getElementById('dashGreeting').textContent = `${greet} 👋`;
+        document.getElementById('dashDate').textContent = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        document.getElementById('dashSummary').innerHTML = needAttn
+            ? `<strong>${needAttn}</strong> cheez${needAttn !== 1 ? 'on' : ''} par dhyan chahiye — ${c.out} out, ${c.low} low, ${c.expired} expired, ${c.exp7} 7 din me expire.`
+            : 'Sab kuch theek hai — koi urgent alert nahi 🎉';
+
+        // ── KPI cards ──
+        const kpis = [
+            { k: 'items', cls: 'green', icon: 'fa-tag', label: 'Total Items', v: items.length, go: "navigateTo('items')" },
+            { k: 'entries', cls: 'blue', icon: 'fa-boxes-stacked', label: 'Stock Entries', v: stock.length, go: "dashGoStock('')" },
+            { k: 'value', cls: 'purple', icon: 'fa-indian-rupee-sign', label: 'Inventory Value', v: totalValue, fmt: formatCurrency, go: "dashGoStock('')" },
+            { k: 'inuse', cls: 'teal', icon: 'fa-circle-play', label: 'In Use Now', v: c.inUse, go: "dashGoStock('inuse')" },
+            { k: 'low', cls: 'orange', icon: 'fa-triangle-exclamation', label: 'Low Stock', v: c.low, go: "dashGoStock('low')" },
+            { k: 'out', cls: 'red', icon: 'fa-ban', label: 'Out of Stock', v: c.out, go: "dashGoStock('out')" },
+            { k: 'exping', cls: 'orange', icon: 'fa-hourglass-half', label: 'Expiring (30d)', v: c.expiring, go: "dashGoStock('expiring')" },
+            { k: 'expd', cls: 'red', icon: 'fa-calendar-xmark', label: 'Expired', v: c.expired, go: "dashGoStock('expired')" },
+            { k: 'broken', cls: 'gray', icon: 'fa-box-open', label: 'Broken Packs', v: c.broken, go: "dashGoStock('broken')" },
+            { k: 'shop', cls: 'blue', icon: 'fa-cart-shopping', label: 'To Buy', v: shopCount, go: "navigateTo('shopping')" }
+        ];
+        if (!root.dataset.built) {
+            root.innerHTML = kpis.map((x, i) => `<div class="col"><div class="stat-card dash-kpi ${x.cls}" data-kpi="${x.k}" style="animation-delay:${i * 40}ms" onclick="${x.go}">
+                <i class="fas ${x.icon} kpi-icon"></i><div class="stat-value" data-kpi-val="${x.k}">0</div><div class="stat-label">${x.label}</div></div></div>`).join('');
+            root.dataset.built = '1';
         }
+        kpis.forEach(x => dashCount(root.querySelector(`[data-kpi-val="${x.k}"]`), x.v, x.fmt || (n => Math.round(n).toString())));
 
-        refreshBrandUsageWidget();
+        // ── stock health bar ──
+        const total = rows.length || 1;
+        const seg = [['ok', 'Healthy', '#10b981', 'ok'], ['expiring', 'Expiring', '#f59e0b', 'expiring'], ['low', 'Low', '#fb923c', 'low'], ['out', 'Out', '#ef4444', 'out'], ['expired', 'Expired', '#991b1b', 'expired']];
+        document.getElementById('dashHealth').innerHTML = rows.length
+            ? `<div class="dash-health-bar">${seg.map(([k, l, col]) => c[k] ? `<div style="width:${c[k] / total * 100}%;background:${col}" title="${l}: ${c[k]}"></div>` : '').join('')}</div>
+               <div class="dash-legend">${seg.map(([k, l, col, f]) => `<button type="button" class="dash-chip" onclick="dashGoStock('${f === 'ok' ? '' : f}')"><span class="dot" style="background:${col}"></span>${l} <strong>${c[k]}</strong></button>`).join('')}</div>`
+            : dashEmpty('fa-boxes-stacked', 'Abhi koi stock entry nahi');
+        const healthPct = rows.length ? Math.round(c.ok / rows.length * 100) : 0;
+        document.getElementById('dashHealthPct').textContent = rows.length ? healthPct + '% healthy' : '';
 
-        const recent = [...items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
-        const tbody = document.getElementById('recentItemsBody');
-        if (!recent.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><i class="fas fa-inbox"></i><p>No items yet.</p></td></tr>'; }
-        else {
-            tbody.innerHTML = recent.map(i => {
-                const brand = getBrandById(i.brandId);
-                return `<tr><td>${escapeHtml(i.itemName)}</td><td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td><td>${i.size} ${i.unit}</td><td>${formatCurrency(getSellingPrice(i))}</td></tr>`;
-            }).join('');
+        // ── value by category / storage ──
+        const vt = dashState.valueTab;
+        document.querySelectorAll('[data-vtab]').forEach(b => b.classList.toggle('active', b.dataset.vtab === vt));
+        const src = vt === 'category' ? catVal : storVal;
+        const nameOf = id => vt === 'category' ? (catMap.get(id)?.name || 'Uncategorised') : (storMap.get(id)?.name || 'Unknown');
+        const vlist = [...src.entries()].map(([id, v]) => ({ name: nameOf(id), v })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+        const vtop = vlist.slice(0, 6), vrest = vlist.slice(6).reduce((a, x) => a + x.v, 0);
+        if (vrest > 0) vtop.push({ name: 'Others', v: vrest });
+        const vmax = Math.max(...vtop.map(x => x.v), 1), vsum = vlist.reduce((a, x) => a + x.v, 0) || 1;
+        document.getElementById('dashValueBars').innerHTML = vtop.length ? vtop.map(x => `<div class="dash-bar-row">
+            <div class="d-flex justify-content-between gap-2"><span class="text-truncate fw-semibold">${escapeHtml(x.name)}</span><span class="text-muted">${formatCurrency(x.v)} · ${Math.round(x.v / vsum * 100)}%</span></div>
+            <div class="brand-usage-bar"><div class="dash-grow" style="width:${x.v / vmax * 100}%"></div></div></div>`).join('') : dashEmpty('fa-chart-simple', 'Value dikhane ke liye stock + price chahiye');
+
+        // ── alerts (tabbed) ──
+        const lists = {
+            low: rows.filter(r => r.st.key === 'out' || r.st.key === 'low').sort((a, b) => (a.st.key === 'out' ? 0 : 1) - (b.st.key === 'out' ? 0 : 1)),
+            expiring: rows.filter(r => r.st.key === 'expiring').sort((a, b) => a.st.days - b.st.days),
+            expired: rows.filter(r => r.st.key === 'expired').sort((a, b) => new Date(a.s.expiryDate) - new Date(b.s.expiryDate))
+        };
+        const goMap = { low: 'low', expiring: 'expiring', expired: 'expired' };
+        const tabDefs = [['low', 'Low / Out', 'fa-triangle-exclamation'], ['expiring', 'Expiring', 'fa-hourglass-half'], ['expired', 'Expired', 'fa-calendar-xmark']];
+        document.getElementById('dashAlertTabs').innerHTML = tabDefs.map(([k, l, ic]) => `<button type="button" class="dash-tab ${dashState.alertTab === k ? 'active' : ''}" onclick="dashSetTab('alertTab','${k}')"><i class="fas ${ic} me-1"></i>${l} <span class="cnt">${lists[k].length}</span></button>`).join('');
+        const cur = lists[dashState.alertTab] || [];
+        document.getElementById('dashAlerts').innerHTML = cur.length ? cur.slice(0, 8).map(r => {
+            const dng = r.st.key === 'out' || r.st.key === 'expired' || (r.st.key === 'expiring' && r.st.days <= 7);
+            let badge;
+            if (r.st.key === 'out') badge = '<span class="badge-soft red">Out</span>';
+            else if (r.st.key === 'low') badge = `<span class="badge-soft orange">${r.qty} left</span>`;
+            else if (r.st.key === 'expiring') badge = `<span class="badge-soft ${r.st.days <= 7 ? 'red' : 'orange'}">${r.st.days}d</span>`;
+            else badge = `<span class="badge-soft red">${Math.abs(Math.ceil((new Date(r.s.expiryDate) - today) / 86400000))}d ago</span>`;
+            const sub = dashState.alertTab === 'low' ? `Alert ≤ ${getMinAlert(r.item)}` : `Exp ${formatDate(r.s.expiryDate)}`;
+            return `<div class="alert-item ${dng ? 'danger' : ''}"><div style="min-width:0;flex:1;"><strong>${dashName(r.item, r.brand)}</strong><br><small class="text-muted">${escapeHtml(r.storage?.name || 'Unknown')} · ${sub}</small></div>${badge}</div>`;
+        }).join('') + (cur.length > 8 ? `<button class="btn btn-sm btn-outline-custom w-100 mt-1" onclick="dashGoStock('${goMap[dashState.alertTab]}')">View all ${cur.length}</button>` : '')
+            : dashEmpty('fa-check-circle', 'Is category me kuch nahi 🎉', true);
+
+        // ── in use now ──
+        const inUseRows = rows.filter(r => r.s.inUse).sort((a, b) => (a.item.itemName || '').localeCompare(b.item.itemName || ''));
+        document.getElementById('dashInUseCount').textContent = inUseRows.length;
+        document.getElementById('dashInUse').innerHTML = inUseRows.length ? inUseRows.slice(0, 8).map(r => `<div class="dash-row">
+            ${thumbHtml(r.item, 'md')}
+            <div style="min-width:0;flex:1;"><strong class="d-block text-truncate">${dashName(r.item, r.brand)}</strong>
+            <small class="text-muted">${escapeHtml(r.storage?.name || '')}${r.s.expiryDate ? ' · Exp ' + formatDate(r.s.expiryDate) : ''}</small></div>
+            <div class="text-end">${r.qty <= 0 ? '<span class="badge-soft red">Empty</span>' : `<span class="badge-soft teal">${r.qty}</span>`}${r.s.brokenPack ? '<div><span class="badge-soft orange mt-1"><i class="fas fa-box-open"></i></span></div>' : ''}</div>
+        </div>`).join('') + (inUseRows.length > 8 ? `<button class="btn btn-sm btn-outline-custom w-100 mt-1" onclick="dashGoStock('inuse')">View all ${inUseRows.length}</button>` : '')
+            : dashEmpty('fa-circle-play', 'Koi item "In Use" mark nahi hai. Stock edit karke ON karein.');
+
+        // ── smart insights ──
+        const shopItemIds = new Set(shopPending.map(x => x.itemId).filter(Boolean));
+        notes.forEach(n => (n.items || []).forEach(i => { if (!i.bought && i.itemId) shopItemIds.add(i.itemId); }));
+        const needBuy = new Set(lists.low.map(r => r.item.id));
+        const notOnList = [...needBuy].filter(id => !shopItemIds.has(id)).length;
+        const multi = [...entriesPerItem.values()].filter(n => n > 1).length;
+        const inUseEmpty = inUseRows.filter(r => r.qty <= 0).length;
+        const noExpiry = rows.filter(r => r.qty > 0 && !r.s.expiryDate).length;
+        const ins = [];
+        if (notOnList) ins.push(['fa-cart-plus', 'orange', `${notOnList} low/out item${notOnList > 1 ? 's' : ''} shopping list me nahi hain`, "navigateTo('shopping')"]);
+        if (c.exp7) ins.push(['fa-bolt', 'red', `${c.exp7} item 7 din ke andar expire ho rahe hain`, "dashGoStock('expiring')"]);
+        if (inUseEmpty) ins.push(['fa-circle-exclamation', 'red', `${inUseEmpty} "In Use" item ki quantity 0 hai — nayi pack kholo ya OFF karo`, "dashGoStock('inuse')"]);
+        if (multi) ins.push(['fa-layer-group', 'blue', `${multi} item ki ek se zyada stock entries hain (merge/check karein)`, "dashGoStock('')"]);
+        if (noExpiry) ins.push(['fa-calendar-plus', 'gray', `${noExpiry} stock entry me expiry date nahi hai`, "dashGoStock('')"]);
+        document.getElementById('dashInsights').innerHTML = ins.length
+            ? ins.map(([ic, col, t, go]) => `<button type="button" class="dash-insight ${col}" onclick="${go}"><i class="fas ${ic}"></i><span>${t}</span><i class="fas fa-chevron-right ms-auto small"></i></button>`).join('')
+            : dashEmpty('fa-wand-magic-sparkles', 'Koi smart suggestion nahi — sab sahi chal raha hai', true);
+
+        // ── shopping snapshot ──
+        document.getElementById('dashShopping').innerHTML = `<div class="row g-2 text-center">
+            <div class="col-4"><div class="dash-mini"><div class="v">${shopPending.length}</div><div class="l">Pending</div></div></div>
+            <div class="col-4"><div class="dash-mini"><div class="v">${shopping.length - shopPending.length}</div><div class="l">Bought</div></div></div>
+            <div class="col-4"><div class="dash-mini"><div class="v">${formatCurrency(shopPendingAmt)}</div><div class="l">Est. Cost</div></div></div></div>
+            <div class="small text-muted mt-2"><i class="fas fa-file-invoice me-1"></i>Purchase Notes: <strong>${notes.length}</strong> · pending items <strong>${notePendingItems}</strong>${notePendingAmt ? ' · ' + formatCurrency(notePendingAmt) : ''}</div>`;
+
+        // ── top valuable items ──
+        const top = [...itemAgg.values()].filter(x => x.value > 0).sort((a, b) => b.value - a.value).slice(0, 5);
+        document.getElementById('dashTopItems').innerHTML = top.length ? top.map((x, i) => `<div class="dash-row"><span class="dash-rank">${i + 1}</span>${thumbHtml(x.item, 'md')}
+            <div style="min-width:0;flex:1;"><strong class="d-block text-truncate">${dashName(x.item, brandMap.get(x.item.brandId))}</strong><small class="text-muted">${x.qty} × ${x.item.size} ${escapeHtml(x.item.unit || '')}</small></div>
+            <strong class="text-success">${formatCurrency(x.value)}</strong></div>`).join('') : dashEmpty('fa-trophy', 'Abhi data nahi');
+
+        // ── top brands ──
+        refreshBrandUsageWidget(items, brands, rows, price);
+
+        // ── recent (tabs) ──
+        document.querySelectorAll('[data-rtab]').forEach(b => b.classList.toggle('active', b.dataset.rtab === dashState.recentTab));
+        const box = document.getElementById('dashRecent');
+        if (dashState.recentTab === 'stock') {
+            const rec = [...rows].sort((a, b) => new Date(b.s.updatedAt || b.s.createdAt) - new Date(a.s.updatedAt || a.s.createdAt)).slice(0, 6);
+            box.innerHTML = rec.length ? rec.map(r => `<div class="dash-row">${thumbHtml(r.item, 'md')}<div style="min-width:0;flex:1;"><strong class="d-block text-truncate">${dashName(r.item, r.brand)}</strong><small class="text-muted">${escapeHtml(r.storage?.name || '')} · ${new Date(r.s.updatedAt || r.s.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</small></div><span class="badge-soft ${r.st.key === 'ok' ? 'green' : r.st.key === 'low' || r.st.key === 'expiring' ? 'orange' : 'red'}">${r.qty}</span></div>`).join('') : dashEmpty('fa-inbox', 'Koi stock entry nahi');
+        } else {
+            const rec = [...items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6);
+            box.innerHTML = rec.length ? rec.map(i => `<div class="dash-row">${thumbHtml(i, 'md')}<div style="min-width:0;flex:1;"><strong class="d-block text-truncate">${escapeHtml(i.itemName)}</strong><small class="text-muted">${escapeHtml(brandMap.get(i.brandId)?.name || '—')} · ${i.size} ${escapeHtml(i.unit || '')}</small></div><strong>${formatCurrency(price(i))}</strong></div>`).join('') : dashEmpty('fa-inbox', 'Koi item nahi');
         }
     }
 
-    function refreshBrandUsageWidget() {
+    function refreshBrandUsageWidget(items, brands, rows, price) {
         const container = document.getElementById('brandUsageList');
         if (!container) return;
-        const brands = getBrands();
-        const items = getItems();
-        if (!brands.length) { container.innerHTML = '<div class="empty-state"><i class="fas fa-copyright"></i><p>No brands yet.</p></div>'; return; }
-        const usage = brands.map(b => {
-            const brandItems = items.filter(i => i.brandId === b.id);
-            const itemCount = brandItems.length;
-            let stockCount = 0, value = 0;
-            brandItems.forEach(i => {
-                getStock().filter(s => s.itemId === i.id).forEach(s => {
-                    stockCount += Number(s.quantity) || 0;
-                    value += getSellingPrice(i) * (Number(s.quantity) || 0);
-                });
-            });
-            return { id: b.id, name: b.name, itemCount, stockCount, value };
-        }).sort((a, b) => b.itemCount - a.itemCount).slice(0, 6);
+        items = items || getItems(); brands = brands || getBrands();
+        if (!brands.length) { container.innerHTML = dashEmpty('fa-copyright', 'No brands yet.'); return; }
+        const perBrand = new Map();
+        brands.forEach(b => perBrand.set(b.id, { id: b.id, name: b.name, itemCount: 0, stockCount: 0, value: 0 }));
+        items.forEach(i => { const u = perBrand.get(i.brandId); if (u) u.itemCount++; });
+        (rows || []).forEach(r => { const u = perBrand.get(r.item.brandId); if (u) { u.stockCount += r.qty; u.value += r.value; } });
+        const usage = [...perBrand.values()].sort((a, b) => b.itemCount - a.itemCount).slice(0, 6);
         const maxItems = Math.max(...usage.map(u => u.itemCount), 1);
-        container.innerHTML = usage.map(u => {
-            const pct = (u.itemCount / maxItems) * 100;
-            return `<div class="brand-usage-row">
-                <div class="brand-usage-avatar">${escapeHtml(initials(u.name))}</div>
-                <div style="flex:1;min-width:0;">
-                    <div class="d-flex justify-content-between align-items-center"><strong>${escapeHtml(u.name)}</strong><small class="text-muted">${u.itemCount} item${u.itemCount !== 1 ? 's' : ''}</small></div>
-                    <div class="brand-usage-bar"><div style="width:${pct}%;"></div></div>
-                    <small class="text-muted">Stock: ${u.stockCount.toFixed(0)} units · Value: ${formatCurrency(u.value)}</small>
-                </div>
-            </div>`;
-        }).join('');
+        container.innerHTML = usage.map(u => `<div class="brand-usage-row">
+            <div class="brand-usage-avatar">${escapeHtml(initials(u.name))}</div>
+            <div style="flex:1;min-width:0;">
+                <div class="d-flex justify-content-between align-items-center"><strong>${escapeHtml(u.name)}</strong><small class="text-muted">${u.itemCount} item${u.itemCount !== 1 ? 's' : ''}</small></div>
+                <div class="brand-usage-bar"><div class="dash-grow" style="width:${(u.itemCount / maxItems) * 100}%;"></div></div>
+                <small class="text-muted">Stock: ${u.stockCount.toFixed(0)} units · Value: ${formatCurrency(u.value)}</small>
+            </div></div>`).join('');
     }
+
+    window.toggleStockInUse = function (id) {
+        const stock = getStock();
+        const s = stock.find(x => x.id === id); if (!s) return;
+        s.inUse = !s.inUse;
+        s.updatedAt = new Date().toISOString();
+        if (!saveStock(stock)) return;
+        showToast(s.inUse ? 'Marked In Use' : 'Marked Not In Use', 'success');
+        refreshStock(); refreshDashboard(); updateBadges();
+    };
 
     // ═══ SELLER MASTER ═══
     function refreshSellers() {
@@ -1273,6 +1426,8 @@
                 if (statusFilter === 'expired') return st.label === 'Expired';
                 if (statusFilter === 'expiring') return st.label.startsWith('Expires in');
                 if (statusFilter === 'broken') return !!s.brokenPack;
+                if (statusFilter === 'inuse') return !!s.inUse;
+                if (statusFilter === 'notinuse') return !s.inUse;
                 return true;
             });
         }
@@ -1290,7 +1445,7 @@
             const storage = getStorageById(s.storageId);
             const status = getStockStatus(s);
             const value = getSellingPrice(item) * (Number(s.quantity) || 0);
-            return `<tr>
+            return `<tr class="${s.inUse ? 'row-inuse' : ''}">
                 <td><div class="d-flex align-items-center gap-2">${thumbHtml(item, 'md')}<div><strong>${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${item.size} ${item.unit}</small></div></div></td>
                 <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td>${storage ? `<i class="fas fa-warehouse text-muted me-1"></i>${escapeHtml(storage.name)}` : '<span class="text-muted">—</span>'}</td>
@@ -1298,8 +1453,9 @@
                 <td>${s.batchNumber ? `<span class="batch-chip"><i class="fas fa-barcode"></i>${escapeHtml(s.batchNumber)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td>${s.expiryDate ? formatDate(s.expiryDate) : '<span class="text-muted">—</span>'}</td>
                 <td>${formatCurrency(value)}</td>
-                <td><span class="badge-soft ${status.cls}">${status.label}</span>${s.brokenPack ? '<br><span class="badge-soft orange mt-1"><i class="fas fa-box-open me-1"></i>Broken pack</span>' : ''}</td>
+                <td><span class="badge-soft ${status.cls}">${status.label}</span>${s.inUse ? '<br><span class="badge-soft teal mt-1"><span class="inuse-dot"></span>In use</span>' : ''}${s.brokenPack ? '<br><span class="badge-soft orange mt-1"><i class="fas fa-box-open me-1"></i>Broken pack</span>' : ''}</td>
                 <td>
+                    <button class="btn btn-sm ${s.inUse ? 'btn-info text-white' : 'btn-outline-info'} me-1" title="In use on/off" onclick="toggleStockInUse('${s.id}')"><i class="fas fa-circle-play"></i></button>
                     <button class="btn btn-sm btn-outline-success me-1" onclick="quickAdjust('${s.id}', 1)"><i class="fas fa-plus"></i></button>
                     <button class="btn btn-sm btn-outline-warning me-1" onclick="quickAdjust('${s.id}', -1)"><i class="fas fa-minus"></i></button>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="openStockModal('edit','${s.id}')"><i class="fas fa-edit"></i></button>
@@ -1315,7 +1471,7 @@
             const status = getStockStatus(s);
             const value = getSellingPrice(item) * (Number(s.quantity) || 0);
             const min = getMinAlert(item);
-            return `<div class="mobile-card">
+            return `<div class="mobile-card ${s.inUse ? 'is-inuse' : ''}">
                 <div class="mobile-card-header">
                     ${thumbHtml(item, 'lg')}
                     <div style="min-width:0;flex:1;">
@@ -1327,11 +1483,13 @@
                 <div class="mobile-card-row"><span class="label"><i class="fas fa-warehouse me-1"></i>Storage</span><span>${storage ? escapeHtml(storage.name) : '—'}</span></div>
                 <div class="mobile-card-row"><span class="label">Quantity</span><span><strong>${Number(s.quantity) || 0}</strong> <small class="text-muted">(Alert ≤ ${min})</small></span></div>
                 ${s.batchNumber ? `<div class="mobile-card-row"><span class="label"><i class="fas fa-barcode me-1"></i>Batch</span><span class="batch-chip">${escapeHtml(s.batchNumber)}</span></div>` : ''}
+                ${s.inUse ? `<div class="mobile-card-row"><span class="label"><i class="fas fa-circle-play me-1"></i>In Use</span><span class="badge-soft teal"><span class="inuse-dot"></span>Yes</span></div>` : ''}
                 ${s.brokenPack ? `<div class="mobile-card-row"><span class="label"><i class="fas fa-box-open me-1"></i>Broken Pack</span><span class="badge-soft orange">Available</span></div>` : ''}
                 ${s.rate ? `<div class="mobile-card-row"><span class="label">Buy Rate</span><span>${formatCurrency(s.rate)}</span></div>` : ''}
                 ${s.expiryDate ? `<div class="mobile-card-row"><span class="label">Expiry</span><span>${formatDate(s.expiryDate)}</span></div>` : ''}
                 <div class="mobile-card-row"><span class="label">Value</span><span><strong>${formatCurrency(value)}</strong></span></div>
                 <div class="mobile-card-actions">
+                    <button class="btn ${s.inUse ? 'btn-info text-white' : 'btn-outline-info'}" onclick="toggleStockInUse('${s.id}')"><i class="fas fa-circle-play"></i></button>
                     <button class="btn btn-outline-success" onclick="quickAdjust('${s.id}', 1)"><i class="fas fa-plus"></i></button>
                     <button class="btn btn-outline-warning" onclick="quickAdjust('${s.id}', -1)"><i class="fas fa-minus"></i></button>
                     <button class="btn btn-outline-primary" onclick="openStockModal('edit','${s.id}')"><i class="fas fa-edit"></i></button>
@@ -1361,6 +1519,7 @@
         document.getElementById('stockNotes').value = '';
         document.getElementById('stockBatch').value = '';
         document.getElementById('stockBroken').checked = false;
+        document.getElementById('stockInUse').checked = false;
         document.getElementById('stockItem').value = '';
         document.getElementById('stockItemAc').value = '';
         populateDropdown('stockStorage', getStorages().map(s => ({ id: s.id, label: s.name })), false);
@@ -1382,6 +1541,7 @@
             document.getElementById('stockNotes').value = s.notes || '';
             document.getElementById('stockRate').value = (s.rate !== undefined && s.rate !== null) ? s.rate : '';
             document.getElementById('stockBroken').checked = !!s.brokenPack;
+            document.getElementById('stockInUse').checked = !!s.inUse;
         } else if (preselectedItemId) {
             const it = getItemById(preselectedItemId);
             if (it) {
@@ -1420,6 +1580,7 @@
             expiryDate: document.getElementById('stockExpiry').value || null,
             notes: document.getElementById('stockNotes').value.trim(),
             brokenPack: document.getElementById('stockBroken').checked,
+            inUse: document.getElementById('stockInUse').checked,
             createdAt: editId ? (stock.find(x => x.id === editId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
@@ -2715,12 +2876,12 @@
 
         stock: {
             title: 'Stock', file: 'stock',
-            headers: ['brand', 'itemName', 'size', 'unit', 'storage', 'quantity', 'batchNumber', 'rate', 'purchaseDate', 'expiryDate', 'notes', 'brokenPack'],
+            headers: ['brand', 'itemName', 'size', 'unit', 'storage', 'quantity', 'batchNumber', 'rate', 'purchaseDate', 'expiryDate', 'notes', 'brokenPack', 'inUse'],
             required: ['brand', 'itemname', 'size', 'unit', 'storage', 'quantity'],
             previewHead: ['Item', 'Storage', 'Qty', 'Batch', 'Expiry'],
             sample: [
-                ['Tata', 'Toor Dal', '1', 'kg', 'Storage Box', '3', 'TD-2024-A1', '180', todayISO(), '', '', 'yes'],
-                ['Amul', 'Milk', '1', 'l', 'Refrigerator', '2', 'MLK-2401', '60', todayISO(), '', '', 'no']
+                ['Tata', 'Toor Dal', '1', 'kg', 'Storage Box', '3', 'TD-2024-A1', '180', todayISO(), '', '', 'yes', 'yes'],
+                ['Amul', 'Milk', '1', 'l', 'Refrigerator', '2', 'MLK-2401', '60', todayISO(), '', '', 'no', 'no']
             ],
             notes: [
                 'item (brand + itemName + size + unit) aur <strong>storage</strong> pehle se Master me hone chahiye',
@@ -2728,13 +2889,14 @@
                 '<strong>rate</strong> (optional): import hone par Item Master ka Base Price latest purchaseDate wale rate se update hota hai',
                 'Dates: YYYY-MM-DD ya DD/MM/YYYY',
                 '<strong>brokenPack</strong> (optional): yes / no',
+                '<strong>inUse</strong> (optional): yes / no — item abhi use me hai ya nahi',
                 'Bilkul same entry (item + storage + qty + dates) skip hogi'
             ],
             getAll: getStock,
             toRow: s => {
                 const item = getItemById(s.itemId); if (!item) return null;
                 const b = getBrandById(item.brandId), st = getStorageById(s.storageId);
-                return [b ? b.name : '', item.itemName, item.size, item.unit, st ? st.name : '', s.quantity, s.batchNumber || '', (s.rate === null || s.rate === undefined) ? '' : s.rate, s.purchaseDate || '', s.expiryDate || '', s.notes || '', s.brokenPack ? 'yes' : 'no'];
+                return [b ? b.name : '', item.itemName, item.size, item.unit, st ? st.name : '', s.quantity, s.batchNumber || '', (s.rate === null || s.rate === undefined) ? '' : s.rate, s.purchaseDate || '', s.expiryDate || '', s.notes || '', s.brokenPack ? 'yes' : 'no', s.inUse ? 'yes' : 'no'];
             },
             makeCtx: () => ({
                 brands: getBrands(), items: getItems(), storages: getStorages(),
@@ -2756,7 +2918,7 @@
                 if (ctx.seen.has(key)) return { dup: `${f.brand.name} ${f.item.itemName} @ ${st.name} already exists` };
                 ctx.seen.add(key);
                 return {
-                    data: { itemId: f.item.id, storageId: st.id, quantity: qty, rate, batchNumber: row.batchnumber || '', purchaseDate: pd || null, expiryDate: ed || null, notes: row.notes || '', brokenPack: /^(yes|y|true|1)$/i.test(row.brokenpack || '') },
+                    data: { itemId: f.item.id, storageId: st.id, quantity: qty, rate, batchNumber: row.batchnumber || '', purchaseDate: pd || null, expiryDate: ed || null, notes: row.notes || '', brokenPack: /^(yes|y|true|1)$/i.test(row.brokenpack || ''), inUse: /^(yes|y|true|1)$/i.test(row.inuse || '') },
                     view: [`${f.brand.name} ${f.item.itemName} ${f.item.size}${f.item.unit}`, st.name, qty, row.batchnumber || '—', ed ? formatDate(ed) : '—']
                 };
             },
