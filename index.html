@@ -667,6 +667,8 @@
                         Storages</button></div>
                 <div class="nav-item"><button class="nav-link" data-page="shopping"><i class="fas fa-cart-shopping"></i>
                         Shopping List <span class="badge-count" id="shoppingBadgeCount">0</span></button></div>
+                <div class="nav-item"><button class="nav-link" data-page="reports"><i class="fas fa-chart-bar"></i>
+                        Reports</button></div>
                 <div class="nav-item"><button class="nav-link" data-page="settings"><i class="fas fa-cog"></i> Settings
                         & Sync</button></div>
             </nav>
@@ -1029,6 +1031,32 @@
                         </select>
                     </div>
                     <div id="pnListContainer"></div>
+                </div>
+            </div>
+
+            <!-- In index.html, after the closing div of page-dashboard -->
+
+            <!-- Reports -->
+            <div class="section-page" id="page-reports">
+                <div class="page-header">
+                    <h5 class="fw-bold mb-0">📊 Reports</h5>
+                </div>
+
+                <!-- Report Type Selector -->
+                <div class="dash-tabs mb-3" id="reportTabs">
+                    <button type="button" class="dash-tab active" onclick="switchReport('low')">Low Stock</button>
+                    <button type="button" class="dash-tab" onclick="switchReport('notAdded')">Not Added Yet</button>
+                    <button type="button" class="dash-tab" onclick="switchReport('minAlertZero')">Min Alert & Zero
+                        Stock</button>
+                    <button type="button" class="dash-tab" onclick="switchReport('expired')">Expired</button>
+                    <button type="button" class="dash-tab" onclick="switchReport('expiring')">Expiring Soon</button>
+                    <button type="button" class="dash-tab" onclick="switchReport('outOfStock')">Out of Stock</button>
+                </div>
+
+                <!-- Report Results Container -->
+                <div class="card-custom">
+                    <h6 id="reportTitle" class="fw-bold mb-3"></h6>
+                    <div id="reportListContainer"></div>
                 </div>
             </div>
 
@@ -1398,9 +1426,38 @@
                         </div>
                         <div class="col-12 col-md-6"><label class="form-label fw-semibold">Storage Location
                                 *</label><select class="form-select" id="stockStorage"></select></div>
-                        <div class="col-12 col-md-4"><label class="form-label fw-semibold">Quantity *</label><input
-                                type="number" class="form-control" id="stockQuantity" placeholder="e.g., 2" step="0.01"
-                                min="0"></div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-semibold" id="stockQuantityLabel">Quantity *</label>
+                            <input type="number" class="form-control" id="stockQuantity" placeholder="e.g., 2"
+                                step="0.01" min="0">
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch p-0 d-flex align-items-center gap-2"
+                                style="padding:10px 12px !important;border:1px solid #e2e8f0;border-radius:12px;background:#f0f9ff;">
+                                <input class="form-check-input m-0" type="checkbox" role="switch" id="isMultiPack"
+                                    style="width:2.4em;height:1.3em;flex-shrink:0;" onchange="toggleMultiPackFields()">
+                                <label class="form-check-label fw-semibold" for="isMultiPack" style="cursor:pointer;">
+                                    <i class="fas fa-box me-1 text-primary"></i>This is a multi-pack (e.g., a box of
+                                    soaps)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-12 row g-3" id="multiPackFields" style="display:none;">
+                            <div class="col-6 col-md-4">
+                                <label class="form-label fw-semibold">Outer Box Qty</label>
+                                <input type="number" class="form-control" id="outerBoxQty" placeholder="0" step="1"
+                                    min="0">
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <label class="form-label fw-semibold">Units per Box</label>
+                                <input type="number" class="form-control" id="unitsPerBox" placeholder="1" step="1"
+                                    min="1">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-semibold">Total Quantity (Auto)</label>
+                                <input type="text" class="form-control" id="multiPackTotal" readonly>
+                            </div>
+                        </div>
                         <div class="col-12 col-md-4"><label class="form-label fw-semibold">Batch Number</label><input
                                 type="text" class="form-control" id="stockBatch" placeholder="e.g., BATCH-2024-01"
                                 autocomplete="off"><small class="text-muted" style="font-size:0.7rem;">Optional —
@@ -1616,6 +1673,28 @@
                 <div class="modal-footer"><button class="btn btn-outline-custom"
                         data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary-custom"
                         onclick="saveQuickSeller()">💾 Save & Select</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════ STOCK VIEW MODAL (from Item Master) ══════════ -->
+    <div class="modal fade modal-custom" id="stockViewModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="stockViewModalTitle">Stock</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="stockViewItemDetails" class="mb-3"></div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold mb-0">Stock Entries</h6>
+                        <button class="btn btn-primary-custom btn-sm" id="addStockFromViewBtn">
+                            <i class="fas fa-plus me-1"></i>Add Stock
+                        </button>
+                    </div>
+                    <div id="stockViewList"></div>
+                </div>
             </div>
         </div>
     </div>

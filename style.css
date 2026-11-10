@@ -1525,3 +1525,53 @@ tr.row-inuse>td:first-child {
         transition: none !important;
     }
 }
+
+/* ═══════════════════════════════════════════
+   REPORTS PAGE
+   ═══════════════════════════════════════════ */
+#page-reports .card-custom {
+    min-height: 300px;
+}
+
+/* ═══════════════════════════════════════════
+   STOCK MANAGEMENT BUTTONS (Report Cards)
+   ═══════════════════════════════════════════ */
+.stock-action-btns {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #e2e8f0;
+}
+
+.stock-action-btns .btn {
+    flex: 1;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.4rem 0.2rem;
+    min-height: 38px;
+}
+
+/* ═══════════════════════════════════════════
+   MULTI-PACK ITEM STYLES
+   ═══════════════════════════════════════════ */
+.outer-box-container {
+    background-color: #f0fdfa;
+    border: 1px solid #ccfbf1;
+    border-radius: 12px;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.outer-box-header {
+    font-weight: 600;
+    color: #115e59;
+    font-size: 0.85rem;
+}
+
+.inner-units-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}

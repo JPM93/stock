@@ -379,9 +379,16 @@
     function navigateTo(page) {
         const mobileTitle = document.getElementById('mobileBrandTitle');
         const mobileTitles = {
-            dashboard: '📊 Dashboard', stock: '📦 Stock', items: '🏷️ Items',
-            brands: '©️ Brands', sellers: '🏪 Sellers', categories: '📚 Categories',
-            storages: '🏠 Storages', shopping: '🛒 Shopping List', settings: '⚙️ Settings'
+            dashboard: '📊 Dashboard',
+            stock: '📦 Stock',
+            items: '🏷️ Items',
+            brands: '©️ Brands',
+            sellers: '🏪 Sellers',
+            categories: '📚 Categories',
+            storages: '🏠 Storages',
+            shopping: '🛒 Shopping List',
+            reports: '📊 Reports',
+            settings: '⚙️ Settings'
         };
         if (mobileTitle) mobileTitle.textContent = mobileTitles[page] || '🛒 GharSeva';
 
@@ -401,9 +408,16 @@
         document.querySelectorAll('.sidebar-nav .nav-link').forEach(el => el.classList.remove('active'));
         const nav = document.querySelector(`[data-page="${page}"]`); if (nav) nav.classList.add('active');
         const titles = {
-            dashboard: '📊 Dashboard', stock: '📦 Available Stock', items: '🏷️ Item Master',
-            brands: '©️ Brand Master', sellers: '🏪 Seller Master', categories: '📚 Category Master',
-            storages: '🏠 Storage Master', shopping: '🛒 Shopping List', settings: '⚙️ Settings & Sync'
+            dashboard: '📊 Dashboard',
+            stock: '📦 Available Stock',
+            items: '🏷️ Item Master',
+            brands: '©️ Brand Master',
+            sellers: '🏪 Seller Master',
+            categories: '📚 Category Master',
+            storages: '🏠 Storage Master',
+            shopping: '🛒 Shopping List',
+            reports: '📊 Reports',
+            settings: '⚙️ Settings & Sync'
         };
         document.getElementById('pageTitle').textContent = titles[page] || page;
 
@@ -439,6 +453,7 @@
             case 'categories': refreshCategories(); break;
             case 'storages': refreshStorages(); break;
             case 'shopping': refreshShopping(); break;
+            case 'reports': refreshReports(); break;
         }
         updateBadges();
     }
@@ -1116,6 +1131,7 @@
                 <td>${bestSeller ? `<span class="seller-chip best"><span class="seller-name">${escapeHtml(bestSeller.name)}</span> <span class="seller-price">${formatCurrency(best.price)}</span>${bestDiscount ? ` <span class="seller-disc">${bestDiscount}%</span>` : ''}</span>` : '<span class="text-muted small">No sellers</span>'}</td>
                 <td><span class="badge-soft orange">≤ ${getMinAlert(i)}</span></td>
                 <td>
+                    <button class="btn btn-sm btn-info me-1" onclick="openStockViewModal('${i.id}')" title="View Stock"><i class="fas fa-boxes-stacked"></i></button>
                     <button class="btn btn-sm item-stock-btn me-1" onclick="openStockModal('add',null,'${i.id}')" title="Add stock"><i class="fas fa-plus"></i></button>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="openItemModal('edit','${i.id}')"><i class="fas fa-edit"></i></button>
                     <button class="btn btn-sm btn-outline-danger" onclick="deleteItem('${i.id}')"><i class="fas fa-trash"></i></button>
@@ -1156,6 +1172,7 @@
                 ${sellerChips ? `<div style="margin-top:6px;"><small class="text-muted d-block mb-1">Sellers:</small>${sellerChips}</div>` : ''}
                 ${i.notes ? `<div class="mobile-card-row" style="margin-top:6px;"><span class="label">Notes</span><span>${escapeHtml(i.notes)}</span></div>` : ''}
                 <div class="mobile-card-actions">
+                    <button class="btn btn-outline-info" onclick="openStockViewModal('${i.id}')"><i class="fas fa-boxes-stacked me-1"></i>Stock</button>
                     <button class="btn btn-outline-success" onclick="openStockModal('add',null,'${i.id}')"><i class="fas fa-plus me-1"></i>Stock</button>
                     <button class="btn btn-outline-primary" onclick="openItemModal('edit','${i.id}')"><i class="fas fa-edit me-1"></i>Edit</button>
                     <button class="btn btn-outline-danger" onclick="deleteItem('${i.id}')"><i class="fas fa-trash me-1"></i>Delete</button>
@@ -1439,17 +1456,29 @@
             return;
         }
 
+        // Desktop
         tbody.innerHTML = stock.map(s => {
             const item = getItemById(s.itemId); if (!item) return '';
             const brand = getBrandById(item.brandId);
             const storage = getStorageById(s.storageId);
             const status = getStockStatus(s);
             const value = getSellingPrice(item) * (Number(s.quantity) || 0);
+            const multiPack = getMultiPackInfo(s);
+            let qtyDisplay = `<strong>${Number(s.quantity) || 0}</strong>`;
+            if (multiPack) {
+                qtyDisplay = `
+                <div class="text-center">
+                    <strong>${multiPack.total}</strong>
+                    <div><small class="text-muted">${multiPack.outer} box × ${multiPack.unitsPerBox} + ${multiPack.inner} loose</small></div>
+                </div>
+            `;
+            }
             return `<tr class="${s.inUse ? 'row-inuse' : ''}">
                 <td><div class="d-flex align-items-center gap-2">${thumbHtml(item, 'md')}<div><strong>${escapeHtml(item.itemName)}</strong><br><small class="text-muted">${item.size} ${item.unit}</small></div></div></td>
                 <td>${brand ? `<span class="badge-soft purple">${escapeHtml(brand.name)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td>${storage ? `<i class="fas fa-warehouse text-muted me-1"></i>${escapeHtml(storage.name)}` : '<span class="text-muted">—</span>'}</td>
-                <td><strong>${Number(s.quantity) || 0}</strong>${s.rate ? `<br><small class="text-muted">@ ${formatCurrency(s.rate)}</small>` : ''}</td>
+                <td>${qtyDisplay}</td>
+                <!-- <td><strong>${Number(s.quantity) || 0}</strong>${s.rate ? `<br><small class="text-muted">@ ${formatCurrency(s.rate)}</small>` : ''}</td> -->
                 <td>${s.batchNumber ? `<span class="batch-chip"><i class="fas fa-barcode"></i>${escapeHtml(s.batchNumber)}</span>` : '<span class="text-muted">—</span>'}</td>
                 <td>${s.expiryDate ? formatDate(s.expiryDate) : '<span class="text-muted">—</span>'}</td>
                 <td>${formatCurrency(value)}</td>
@@ -1464,6 +1493,7 @@
             </tr>`;
         }).join('');
 
+        // Mobile
         mob.innerHTML = stock.map(s => {
             const item = getItemById(s.itemId); if (!item) return '';
             const brand = getBrandById(item.brandId);
@@ -1471,6 +1501,25 @@
             const status = getStockStatus(s);
             const value = getSellingPrice(item) * (Number(s.quantity) || 0);
             const min = getMinAlert(item);
+            const multiPack = getMultiPackInfo(s);
+            let qtyDisplay = `<strong>${Number(s.quantity) || 0}</strong>`;
+            if (multiPack) {
+                qtyDisplay = `
+                <div>
+                    <strong>${multiPack.total}</strong>
+                    <div class="outer-box-container" style="padding:6px; margin-top:4px;">
+                        <div class="mobile-card-row" style="padding:2px 0;">
+                            <span class="label">Outer Boxes</span>
+                            <span><strong>${multiPack.outer}</strong> × ${multiPack.unitsPerBox} units</span>
+                        </div>
+                        <div class="mobile-card-row" style="padding:2px 0;">
+                            <span class="label">Loose Units</span>
+                            <span><strong>${multiPack.inner}</strong></span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            }
             return `<div class="mobile-card ${s.inUse ? 'is-inuse' : ''}">
                 <div class="mobile-card-header">
                     ${thumbHtml(item, 'lg')}
@@ -1481,7 +1530,8 @@
                     <span class="badge-soft ${status.cls}">${status.label}</span>
                 </div>
                 <div class="mobile-card-row"><span class="label"><i class="fas fa-warehouse me-1"></i>Storage</span><span>${storage ? escapeHtml(storage.name) : '—'}</span></div>
-                <div class="mobile-card-row"><span class="label">Quantity</span><span><strong>${Number(s.quantity) || 0}</strong> <small class="text-muted">(Alert ≤ ${min})</small></span></div>
+                <div class="mobile-card-row"><span class="label">Quantity</span>${qtyDisplay}</div>
+                <!-- <div class="mobile-card-row"><span class="label">Quantity</span><span><strong>${Number(s.quantity) || 0}</strong> <small class="text-muted">(Alert ≤ ${min})</small></span></div> -->
                 ${s.batchNumber ? `<div class="mobile-card-row"><span class="label"><i class="fas fa-barcode me-1"></i>Batch</span><span class="batch-chip">${escapeHtml(s.batchNumber)}</span></div>` : ''}
                 ${s.inUse ? `<div class="mobile-card-row"><span class="label"><i class="fas fa-circle-play me-1"></i>In Use</span><span class="badge-soft teal"><span class="inuse-dot"></span>Yes</span></div>` : ''}
                 ${s.brokenPack ? `<div class="mobile-card-row"><span class="label"><i class="fas fa-box-open me-1"></i>Broken Pack</span><span class="badge-soft orange">Available</span></div>` : ''}
@@ -1522,6 +1572,13 @@
         document.getElementById('stockInUse').checked = false;
         document.getElementById('stockItem').value = '';
         document.getElementById('stockItemAc').value = '';
+        document.getElementById('isMultiPack').checked = false;
+        document.getElementById('outerBoxQty').value = '';
+        document.getElementById('unitsPerBox').value = '1';
+        document.getElementById('multiPackTotal').value = '';
+
+        toggleMultiPackFields(); // Hide fields by default
+
         populateDropdown('stockStorage', getStorages().map(s => ({ id: s.id, label: s.name })), false);
 
         // Setup item autocomplete for this modal
@@ -1542,6 +1599,16 @@
             document.getElementById('stockRate').value = (s.rate !== undefined && s.rate !== null) ? s.rate : '';
             document.getElementById('stockBroken').checked = !!s.brokenPack;
             document.getElementById('stockInUse').checked = !!s.inUse;
+            if (s.multiPack && s.multiPack.enabled) {
+                document.getElementById('isMultiPack').checked = true;
+                document.getElementById('outerBoxQty').value = s.multiPack.outerBoxQty;
+                document.getElementById('unitsPerBox').value = s.multiPack.unitsPerBox;
+                document.getElementById('stockQuantity').value = s.multiPack.innerUnitQty;
+            } else {
+                document.getElementById('stockQuantity').value = s.quantity;
+            }
+            toggleMultiPackFields();
+            updateMultiPackTotal();
         } else if (preselectedItemId) {
             const it = getItemById(preselectedItemId);
             if (it) {
@@ -1565,8 +1632,30 @@
         const storageId = document.getElementById('stockStorage').value;
         if (!itemId) { showToast('Item required — list se select karein', 'warning'); return; }
         if (!storageId) { showToast('Storage required', 'warning'); return; }
-        const qty = parseFloat(document.getElementById('stockQuantity').value);
+        let qty = parseFloat(document.getElementById('stockQuantity').value);
         if (isNaN(qty) || qty < 0) { showToast('Valid quantity required', 'warning'); return; }
+
+        // qty = 0;
+        let multiPack = null;
+        const isMultiPack = document.getElementById('isMultiPack').checked;
+
+        if (isMultiPack) {
+            const outerBoxQty = parseFloat(document.getElementById('outerBoxQty').value) || 0;
+            const unitsPerBox = parseFloat(document.getElementById('unitsPerBox').value) || 1;
+            const innerUnitQty = parseFloat(document.getElementById('stockQuantity').value) || 0;
+
+            if (unitsPerBox <= 1) {
+                showToast('"Units per Box" must be greater than 1 for a multi-pack.', 'warning');
+                return;
+            }
+            qty = (outerBoxQty * unitsPerBox) + innerUnitQty;
+            multiPack = { enabled: true, outerBoxQty, unitsPerBox, innerUnitQty };
+        } else {
+            qty = parseFloat(document.getElementById('stockQuantity').value);
+        }
+
+        if (isNaN(qty) || qty < 0) { showToast('Valid quantity required', 'warning'); return; }
+
         const rateRaw = document.getElementById('stockRate').value;
         const rate = rateRaw === '' ? null : parseFloat(rateRaw);
         if (rate !== null && (isNaN(rate) || rate < 0)) { showToast('Valid rate required', 'warning'); return; }
@@ -1575,6 +1664,9 @@
         const data = {
             id: editId || uid('stk'),
             itemId, storageId, quantity: qty, rate,
+            quantity: qty,
+            multiPack: multiPack,
+            rate,
             batchNumber: document.getElementById('stockBatch').value.trim() || '',
             purchaseDate: document.getElementById('stockPurchaseDate').value || null,
             expiryDate: document.getElementById('stockExpiry').value || null,
@@ -1598,6 +1690,52 @@
         showToast((editId ? 'Stock updated!' : 'Stock added!') + priceMsg, 'success');
         refreshStock(); refreshItems(); refreshDashboard(); updateBadges();
     };
+
+    // Add this new helper function for the UI toggle
+    window.toggleMultiPackFields = function () {
+        const isMultiPackEl = document.getElementById('isMultiPack');
+        const fields = document.getElementById('multiPackFields');
+        const qtyLabel = document.getElementById('stockQuantityLabel');
+        const qtyInput = document.getElementById('stockQuantity');
+
+        if (!isMultiPackEl || !fields || !qtyLabel || !qtyInput) return;
+
+        const isMultiPack = isMultiPackEl.checked;
+        fields.style.display = isMultiPack ? 'flex' : 'none';
+
+        if (isMultiPack) {
+            qtyLabel.textContent = 'Loose Inner Units';
+            qtyInput.placeholder = 'e.g., 3';
+        } else {
+            qtyLabel.textContent = 'Quantity *';
+            qtyInput.placeholder = 'e.g., 2';
+        }
+        updateMultiPackTotal();
+    };
+
+    // Add listeners to update the total automatically
+    document.addEventListener('input', function (e) {
+        if (['outerBoxQty', 'unitsPerBox', 'stockQuantity'].includes(e.target.id) && document.getElementById('isMultiPack').checked) {
+            updateMultiPackTotal();
+        }
+    });
+
+    function updateMultiPackTotal() {
+        const outerEl = document.getElementById('outerBoxQty');
+        const unitsEl = document.getElementById('unitsPerBox');
+        const innerEl = document.getElementById('stockQuantity');
+        const totalEl = document.getElementById('multiPackTotal');
+        const isMultiPackEl = document.getElementById('isMultiPack');
+
+        if (!outerEl || !unitsEl || !innerEl || !totalEl || !isMultiPackEl) return;
+        if (!isMultiPackEl.checked) return;
+
+        const outer = parseFloat(outerEl.value) || 0;
+        const units = parseFloat(unitsEl.value) || 1;
+        const inner = parseFloat(innerEl.value) || 0;
+        const total = (outer * units) + inner;
+        totalEl.value = total;
+    }
     window.deleteStock = function (id) {
         if (!confirm('Delete this stock entry?')) return;
         saveStock(getStock().filter(s => s.id !== id));
@@ -3246,6 +3384,271 @@
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && closeImageViewer()) e.stopPropagation();
     }, true);
+
+    // ═══════════════════════════════════════════════════════════
+    // ═══ REPORTS MODULE ═══
+    // ═══════════════════════════════════════════════════════════
+
+    const reportState = {
+        current: 'low'
+    };
+
+    window.switchReport = function (reportType) {
+        reportState.current = reportType;
+        // Update tab UI
+        document.querySelectorAll('#reportTabs .dash-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.getAttribute('onclick').includes(`'${reportType}'`));
+        });
+        refreshReports();
+    };
+
+    function refreshReports() {
+        const container = document.getElementById('reportListContainer');
+        const titleEl = document.getElementById('reportTitle');
+        if (!container || !titleEl) return;
+
+        let reportData = [];
+        let reportTitle = "";
+        const now = new Date();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // --- Generate Report Data ---
+        switch (reportState.current) {
+            case 'low':
+                reportTitle = "Items with Low Stock";
+                const allStockLow = getStock();
+                const lowStockByItem = new Map();
+                allStockLow.forEach(s => {
+                    const item = getItemById(s.itemId);
+                    if (!item) return;
+                    const min = getMinAlert(item);
+                    const currentQty = lowStockByItem.get(item.id)?.totalQty || 0;
+                    lowStockByItem.set(item.id, { item, totalQty: currentQty + (Number(s.quantity) || 0) });
+                });
+                reportData = Array.from(lowStockByItem.values()).filter(d => d.totalQty > 0 && d.totalQty <= getMinAlert(d.item));
+                break;
+
+            case 'notAdded':
+                reportTitle = "Items with Min Alert > 0 but No Stock Added";
+                const stockItemIds = new Set(getStock().map(s => s.itemId));
+                reportData = getItems().filter(item => getMinAlert(item) > 0 && !stockItemIds.has(item.id));
+                break;
+
+            case 'minAlertZero':
+                reportTitle = "Items at or Below Min Alert (Including Zero Stock)";
+                const stockMapMin = new Map();
+                getStock().forEach(s => {
+                    const item = getItemById(s.itemId);
+                    if (!item) return;
+                    const currentQty = stockMapMin.get(item.id)?.totalQty || 0;
+                    stockMapMin.set(item.id, { item, totalQty: currentQty + (Number(s.quantity) || 0) });
+                });
+                getItems().forEach(item => {
+                    if (!stockMapMin.has(item.id)) {
+                        stockMapMin.set(item.id, { item, totalQty: 0 });
+                    }
+                });
+                reportData = Array.from(stockMapMin.values()).filter(d => getMinAlert(d.item) > 0 && d.totalQty <= getMinAlert(d.item));
+                break;
+
+            case 'expired':
+                reportTitle = "Expired Stock";
+                reportData = getStock()
+                    .filter(s => s.expiryDate && new Date(s.expiryDate) < now)
+                    .map(s => ({ ...s, item: getItemById(s.itemId) }))
+                    .filter(s => s.item); // Ensure item exists
+                break;
+
+            case 'expiring':
+                reportTitle = "Stock Expiring in Next 30 Days";
+                const thirtyDaysFromNow = new Date();
+                thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+                reportData = getStock()
+                    .filter(s => {
+                        if (!s.expiryDate) return false;
+                        const expiry = new Date(s.expiryDate);
+                        return expiry >= now && expiry <= thirtyDaysFromNow;
+                    })
+                    .map(s => ({ ...s, item: getItemById(s.itemId) }))
+                    .filter(s => s.item)
+                    .sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+                break;
+
+            case 'outOfStock':
+                reportTitle = "Out of Stock Items";
+                const stockMapOut = new Map();
+                getStock().forEach(s => {
+                    const item = getItemById(s.itemId);
+                    if (!item) return;
+                    const currentQty = stockMapOut.get(item.id)?.totalQty || 0;
+                    stockMapOut.set(item.id, { item, totalQty: currentQty + (Number(s.quantity) || 0) });
+                });
+                getItems().forEach(item => {
+                    if (!stockMapOut.has(item.id)) {
+                        stockMapOut.set(item.id, { item, totalQty: 0 });
+                    }
+                });
+                reportData = Array.from(stockMapOut.values()).filter(d => d.totalQty <= 0);
+                break;
+        }
+
+        titleEl.innerHTML = `${reportTitle} <span class="badge-soft blue">${reportData.length}</span>`;
+
+        if (!reportData.length) {
+            container.innerHTML = `<div class="empty-state"><i class="fas fa-check-circle text-success"></i><p>No items found for this report. All good! 🎉</p></div>`;
+            return;
+        }
+
+        // --- Render Data as Cards ---
+        container.innerHTML = reportData.map((d, index) => {
+            // For stock-based reports, 'd' is a stock entry object. For item-based, 'd' is an item object.
+            const item = d.item || d;
+            const stockEntry = d.item ? d : null;
+
+            let statusBadge = '';
+            let actionButtons = '';
+
+            if (stockEntry) { // It's a specific stock entry (expired, expiring, low)
+                if (reportState.current === 'expired' || reportState.current === 'expiring') {
+                    const expiry = new Date(stockEntry.expiryDate);
+                    const daysDiff = Math.ceil((expiry - today) / 86400000);
+                    if (daysDiff < 0) {
+                        statusBadge = `<span class="badge-soft red">Expired ${Math.abs(daysDiff)}d ago</span>`;
+                    } else if (daysDiff <= 30) {
+                        statusBadge = `<span class="badge-soft orange">Expires in ${daysDiff}d</span>`;
+                    }
+                    actionButtons = `
+                    <div class="stock-action-btns">
+                        <button class="btn btn-outline-danger" onclick="throwStock('${stockEntry.id}')"><i class="fas fa-trash me-1"></i>Throw</button>
+                        <button class="btn btn-outline-secondary" onclick="giveAwayStock('${stockEntry.id}')"><i class="fas fa-gift me-1"></i>Given Away</button>
+                    </div>
+                 `;
+                }
+            } else { // It's a summary of an item
+                const totalQty = d.totalQty;
+                const minAlert = getMinAlert(item);
+                if (totalQty <= 0) {
+                    statusBadge = '<span class="badge-soft red">Out of Stock</span>';
+                } else if (totalQty <= minAlert) {
+                    statusBadge = `<span class="badge-soft orange">${totalQty} left (Alert: ${minAlert})</span>`;
+                }
+                actionButtons = `
+                <div class="mobile-card-actions">
+                    <button class="btn btn-primary-custom" onclick="openStockModal('add', null, '${item.id}')"><i class="fas fa-plus me-1"></i>Add Stock</button>
+                    <button class="btn btn-outline-primary" onclick="openStockViewModal('${item.id}')"><i class="fas fa-boxes-stacked me-1"></i>View</button>
+                </div>`;
+            }
+
+            return `<div class="mobile-card">
+            <div class="mobile-card-header">
+                ${thumbHtml(item, 'lg')}
+                <div style="min-width:0;flex:1;">
+                    <div class="mobile-card-title">${escapeHtml(item.itemName)}</div>
+                    <div class="mobile-card-sub">${item.size} ${escapeHtml(item.unit)} · ${escapeHtml(getBrandById(item.brandId)?.name || 'No Brand')}</div>
+                </div>
+                ${statusBadge}
+            </div>
+            ${actionButtons}
+        </div>`;
+        }).join('');
+    }
+
+    // Global function to remove a stock entry
+    function removeStockEntry(id) {
+        saveStock(getStock().filter(s => s.id !== id));
+        showToast('Stock entry removed.', 'success');
+        refreshReports();
+        refreshStock();
+        refreshDashboard();
+        updateBadges();
+    }
+
+    window.throwStock = function (id) {
+        if (confirm('Are you sure you want to throw away this stock?')) {
+            removeStockEntry(id);
+        }
+    };
+
+    window.giveAwayStock = function (id) {
+        if (confirm('Are you sure you have given away this stock?')) {
+            removeStockEntry(id);
+        }
+    };
+
+    // ═══════════════════════════════════════════════════════════
+    // ═══ STOCK VIEW MODAL (from Item Master) ═══
+    // ═══════════════════════════════════════════════════════════
+
+    window.openStockViewModal = function (itemId) {
+        const item = getItemById(itemId);
+        if (!item) return;
+
+        const modalEl = document.getElementById('stockViewModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+        document.getElementById('stockViewModalTitle').textContent = `Stock: ${item.itemName}`;
+
+        // Render item details
+        document.getElementById('stockViewItemDetails').innerHTML = `
+        <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:#f8fafc; border:1px solid #e2e8f0;">
+            ${thumbHtml(item, 'lg')}
+            <div style="flex:1;">
+                <h6 class="fw-bold mb-0">${escapeHtml(getBrandById(item.brandId)?.name || '')} ${escapeHtml(item.itemName)}</h6>
+                <small class="text-muted">Size: ${item.size} ${item.unit} | Min Alert: ${getMinAlert(item)}</small>
+            </div>
+        </div>
+    `;
+
+        // Render stock entries
+        const itemStocks = getStock().filter(s => s.itemId === itemId).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        const listEl = document.getElementById('stockViewList');
+        if (!itemStocks.length) {
+            listEl.innerHTML = `<div class="empty-state py-3"><i class="fas fa-box-open"></i><p>No stock entries for this item.</p></div>`;
+        } else {
+            listEl.innerHTML = itemStocks.map(s => {
+                const storage = getStorageById(s.storageId);
+                const status = getStockStatus(s);
+                return `
+                <div class="mobile-card mb-2" style="background-color:#f8fafc;">
+                    <div class="mobile-card-row"><span class="label">Storage</span><span>${escapeHtml(storage?.name || 'Unknown')}</span></div>
+                    <div class="mobile-card-row"><span class="label">Quantity</span><strong>${s.quantity}</strong></div>
+                    ${s.batchNumber ? `<div class="mobile-card-row"><span class="label">Batch</span><span class="batch-chip">${escapeHtml(s.batchNumber)}</span></div>` : ''}
+                    ${s.expiryDate ? `<div class="mobile-card-row"><span class="label">Expiry</span><span>${formatDate(s.expiryDate)}</span></div>` : ''}
+                    <div class="mobile-card-row"><span class="label">Status</span><span class="badge-soft ${status.cls}">${status.label}</span></div>
+                    <div class="mobile-card-actions">
+                        <button class="btn btn-outline-success" onclick="quickAdjust('${s.id}', 1)"><i class="fas fa-plus"></i></button>
+                        <button class="btn btn-outline-warning" onclick="quickAdjust('${s.id}', -1)"><i class="fas fa-minus"></i></button>
+                        <button class="btn btn-outline-primary" onclick="openStockModal('edit','${s.id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-outline-danger" onclick="deleteStock('${s.id}')"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // Attach event to the "Add Stock" button in the modal
+        document.getElementById('addStockFromViewBtn').onclick = () => {
+            modal.hide();
+            openStockModal('add', null, itemId);
+        };
+
+        modal.show();
+    };
+
+
+    // ═══════════════════════════════════════════════════════════
+    // ═══ MULTI-PACK LOGIC (Placed here for organization) ═══
+    // ═══════════════════════════════════════════════════════════
+    // (These functions will be used by the updated saveStock and UI rendering)
+    function getMultiPackInfo(stockEntry) {
+        if (!stockEntry.multiPack || !stockEntry.multiPack.enabled) return null;
+        const outer = Number(stockEntry.multiPack.outerBoxQty) || 0;
+        const unitsPerBox = Number(stockEntry.multiPack.unitsPerBox) || 1;
+        const inner = Number(stockEntry.multiPack.innerUnitQty) || 0;
+        if (unitsPerBox <= 1) return null; // Not a valid multi-pack
+        const total = (outer * unitsPerBox) + inner;
+        return { outer, unitsPerBox, inner, total };
+    }
 
     // ═══ Init ═══
     function init() {
